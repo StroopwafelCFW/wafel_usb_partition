@@ -19,6 +19,7 @@ const char* MODULE_NAME = "USBPARTITION";
 #define SECTOR_SIZE 512
 #define LOCAL_HEAP_ID 0xCAFE
 #define DEVTYPE_USB 17
+#define DEVTYPE_SD 6
 
 // tells crypto to not do crypto (depends on stroopwafel patch)
 #define NO_CRYPTO_HANDLE 0xDEADBEEF
@@ -56,16 +57,33 @@ static int write_wrapper(void *device_handle, u32 lba_hi, u32 lba, u32 blkCount,
     return real_write(device_handle, lba_hi, lba + sdusb_offset, blkCount, blockSize, buf, cb, cb_ctx);
 }
 
+void hai_write_file_patch(trampoline_t_state *s){
+    uint32_t *buffer = (uint32_t*)s->r[1];
+    debug_printf("HAI WRITE COMPANION\n");
+    if(active && hai_getdev() == DEVTYPE_USB){
+        hai_companion_add_offset(buffer, sdusb_offset);
+    }
+}
+
+void apply_hai_patches(void){
+    trampoline_t_hook_before(0x050078AE, hai_write_file_patch);
+    // hai_write_file_patch needs to knwo the hai dev
+    hai_apply_getdev_patch();
+}
+
 static partition_entry* find_usb_partition(mbr_sector* mbr){
     if(mbr->boot_signature[0]==0x55 && mbr->boot_signature[0]==0xAA)
         return NULL;
-    partition_entry *entry = NULL;
+    partition_entry *selected = NULL;
+    u32 selected_start = 0;
     for (size_t i = 1; i < MBR_MAX_PARTITIONS; i++){
-        if(mbr->partition[i].type == NTFS && (!entry || entry->lba_start < mbr->partition[i].lba_start)){
-            entry = mbr->partition+i;
+        u32 istart = LD_DWORD(mbr->partition[i].lba_start);
+        if(mbr->partition[i].type == NTFS && (selected_start < istart)){
+            selected = mbr->partition+i;
+            selected_start = istart;
         }
     }
-    return entry;
+    return selected;
 }
 
 struct cb_ctx {
@@ -94,7 +112,7 @@ static int sync_read(FSSALAttachDeviceArg* attach_arg, u32 lba, u32 blkCount, vo
     return res;
 }
 
-void patch_usb_handle(FSSALAttachDeviceArg *attach_arg){
+void patch_usb_attach_handle(FSSALAttachDeviceArg *attach_arg){
     real_read = attach_arg->op_read;
     real_write = attach_arg->op_write;
     attach_arg->op_read = read_wrapper;
@@ -106,11 +124,10 @@ void patch_usb_handle(FSSALAttachDeviceArg *attach_arg){
     attach_arg->params.block_count = sdusb_size;
 }
 
-void clone_patch_attach_usb_hanlde(FSSALAttachDeviceArg *attach_arg){
-    memcpy(extra_attach_arg, attach_arg, ATTACH_ARG_SZ);
-    patch_usb_handle(extra_attach_arg);
-    learn_usb_crypto_handle = true;
-    int res = FSSAL_attach_device(*attach_arg);
+void clone_patch_attach_sd_hanlde(FSSALAttachDeviceArg *attach_arg){
+    memcpy(&extra_attach_arg, attach_arg, ATTACH_ARG_SZ);
+    extra_attach_arg.params.type = DEVTYPE_SD;
+    int res = FSSAL_attach_device(&extra_attach_arg);
     debug_printf("%s: Attached extra handle. res: 0x%X\n", MODULE_NAME, res);
 }
 
@@ -141,32 +158,7 @@ out_free:
     return ret;
 }
 
-void hai_write_file_patch(trampoline_t_state *s){
-    uint32_t *buffer = (uint32_t*)s->r[1];
-    debug_printf("HAI WRITE COMPANION\n");
-    if(active && hai_getdev() == DEVTYPE_USB){
-        hai_companion_add_offset(buffer, sdusb_offset);
-    }
-}
-
-void hai_ios_patches(trampoline_t_state *s){
-    if(active && hai_getdev() == DEVTYPE_USB)
-        hai_redirect_mlc2sd();
-}
-
-int hai_path_sprintf_hook(char* parm1, char* parm2, char *fmt, char *dev, int (*sprintf)(char*, char*, char*, char*, char*), int lr, char *companion_file ){
-    if(active)
-        dev = "mlc";
-    return sprintf(parm1, parm2, fmt, dev, companion_file);
-}
-
-void apply_hai_patches(void){
-    trampoline_t_hook_before(0x050078AE, hai_write_file_patch);
-    // hai_write_file_patch needs to knwo the hai dev
-    hai_apply_getdev_patch();
-}
-
-int usb_attach_hook(int *sal_parms, int r1, int r2, int r3, int (*sal_attach)(int*)){
+int usb_attach_hook(int *attach_arg, int r1, int r2, int r3, int (*sal_attach)(int*)){
     int *server_handle = (int*)state->r[0] -3;
     debug_printf("%s: org server_handle: %p\n", MODULE_NAME, server_handle);
 
@@ -176,8 +168,11 @@ int usb_attach_hook(int *sal_parms, int r1, int r2, int r3, int (*sal_attach)(in
 
     active = true;
 
-    // the virtual USB device has to use the original slot, so the sd goes to the extra slot
-    clone_patch_attach_usb_hanlde(server_handle);
+    clone_patch_attach_sd_hanlde(attach_arg);
+
+    patch_usb_attach_handle(attach_arg);
+    learn_usb_crypto_handle = true;
+    return sal_attach(attach_arg);
 }
 
 #ifdef USE_MLC_KEY
