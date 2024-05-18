@@ -161,12 +161,8 @@ int hai_path_sprintf_hook(char* parm1, char* parm2, char *fmt, char *dev, int (*
 
 void apply_hai_patches(void){
     trampoline_t_hook_before(0x050078AE, hai_write_file_patch);
+    // hai_write_file_patch needs to knwo the hai dev
     hai_apply_getdev_patch();
-    //apply patches to HAI IOS just before it gets launched
-    trampoline_t_hook_before(0x0500881e, hai_ios_patches);
-    //force device in hai parm to MLC
-    trampoline_t_blreplace(0x051001d6, hai_path_sprintf_hook);
-    //ASM_T_PATCH_K(0x05100198, "nop");
 }
 
 int usb_attach_hook(int *sal_parms, int r1, int r2, int r3, int (*sal_attach)(int*)){
