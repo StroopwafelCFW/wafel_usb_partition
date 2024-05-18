@@ -12,6 +12,7 @@
 #include "wafel/hai.h"
 #include "mbr.h"
 #include "rednand_config.h"
+#include "sal.h"
 
 const char* MODULE_NAME = "USBPARTITION";
 
@@ -22,17 +23,14 @@ const char* MODULE_NAME = "USBPARTITION";
 // tells crypto to not do crypto (depends on stroopwafel patch)
 #define NO_CRYPTO_HANDLE 0xDEADBEEF
 
-#define SERVER_HANDLE_LEN 0xb5
-#define SERVER_HANDLE_SZ (SERVER_HANDLE_LEN * sizeof(int))
+#define ATTACH_ARG_SZ 0x1fc
 
 #define LD_DWORD(ptr)       (u32)(((u32)*((u8*)(ptr)+3)<<24)|((u32)*((u8*)(ptr)+2)<<16)|((u16)*((u8*)(ptr)+1)<<8)|*(u8*)(ptr))
-
-static int (*FSSAL_attach_device)(int*) = (void*)0x10733aa4;
 
 #define FIRST_HANDLE ((int*)0x11c39e78)
 #define HANDLE_END ((int*)0x11c3a420)
 
-int extra_server_handle[SERVER_HANDLE_LEN]; // = HANDLE_END-SERVER_HANDLE_LEN;
+FSSALAttachDeviceArg extra_attach_arg;
 
 static u32 sdusb_offset = 0xFFFFFFF;
 static u32 sdusb_size = 0xFFFFFFFF;
@@ -44,10 +42,8 @@ u32 mlc_size_sectors = 0;
 static volatile bool learn_mlc_crypto_handle = false;
 static volatile bool learn_usb_crypto_handle = false;
 
-typedef int read_write_fun(int*, u32, u32, u32, u32, void*, void*, void*);
-
-static read_write_fun *real_read = (read_write_fun*)0x107bddd0;
-static read_write_fun *real_write = (read_write_fun*)0x107bdd60;
+static read_func *real_read;
+static write_func *real_write;
 
 bool active = false;
 
@@ -82,13 +78,13 @@ static void read_callback(int res, cb_ctx *ctx){
 }
 
 
-static int sync_read(int* server_handle, u32 lba, u32 blkCount, void *buf){
+static int sync_read(FSSALAttachDeviceArg* attach_arg, u32 lba, u32 blkCount, void *buf){
     cb_ctx ctx = {iosCreateSemaphore(1,0)};
     if(ctx.semaphore < 0){
         debug_printf("%s: Error creating Semaphore: 0x%X\n", MODULE_NAME, ctx.semaphore);
         return ctx.semaphore;
     }
-    int res = ((read_write_fun*)server_handle[0x76])(server_handle, 0, lba, blkCount, SECTOR_SIZE, buf, read_callback, &ctx);
+    int res = attach_arg->op_read(attach_arg->server_handle, 0, lba, blkCount, SECTOR_SIZE, buf, read_callback, &ctx);
     if(!res){
         iosWaitSemaphore(ctx.semaphore, 0);
         res = ctx.res;
@@ -97,35 +93,34 @@ static int sync_read(int* server_handle, u32 lba, u32 blkCount, void *buf){
     return res;
 }
 
-void patch_usb_handle(int* sdusb_server_handle){
-    real_read = (void*)sdusb_server_handle[0x76];
-    real_write = (void*)sdusb_server_handle[0x78];
-    sdusb_server_handle[0x76] = (int)read_wrapper;
-    sdusb_server_handle[0x78] = (int)write_wrapper;
-    sdusb_server_handle[0x5] = DEVTYPE_USB;
-    sdusb_server_handle[0xa] = sdusb_size -1;
-    sdusb_server_handle[0x1] = sdusb_server_handle[0xe] = sdusb_size;
+void patch_usb_handle(FSSALAttachDeviceArg *attach_arg){
+    real_read = attach_arg->op_read;
+    real_write = attach_arg->op_write;
+    attach_arg->op_read = read_wrapper;
+    attach_arg->op_write = write_wrapper;
+    attach_arg->op_read2 = crash_and_burn;
+    attach_arg->op_write2 = crash_and_burn;
+    attach_arg->params.device_type = DEVTYPE_USB;
+    attach_arg->params.max_lba_size = sdusb_size -1;
+    attach_arg->params.block_count = sdusb_size;
 }
 
-void clone_patch_attach_usb_hanlde(int* server_handle){
-    memcpy(extra_server_handle, server_handle, SERVER_HANDLE_SZ);
-    patch_usb_handle(extra_server_handle);
-    // somehow it doesn't work if we fix the handle pointer
-    //extra_server_handle[0x3] = (int) extra_server_handle;
+void clone_patch_attach_usb_hanlde(FSSALAttachDeviceArg *attach_arg){
+    memcpy(extra_attach_arg, attach_arg, ATTACH_ARG_SZ);
+    patch_usb_handle(extra_attach_arg);
     learn_usb_crypto_handle = true;
-    int res = FSSAL_attach_device(extra_server_handle+3);
-    extra_server_handle[0x82] = res;
-    debug_printf("SDUSB: Attached extra handle. res: 0x%X\n", res);
+    int res = FSSAL_attach_device(*attach_arg);
+    debug_printf("%s: Attached extra handle. res: 0x%X\n", MODULE_NAME, res);
 }
 
-int read_usb_partition_from_mbr(int* server_handle, u32* out_offset, u32* out_size){
+int read_usb_partition_from_mbr(FSSALAttachDeviceArg *attach_arg, u32* out_offset, u32* out_size){
     mbr_sector *mbr = iosAllocAligned(LOCAL_HEAP_ID, SECTOR_SIZE, 0x40);
     if(!mbr){
         debug_printf("%s: Failed to allocate IO buf\n", MODULE_NAME);
         return -1;
     }
     int ret = -2;
-    int res = sync_read(server_handle, 0, 1, mbr);
+    int res = sync_read(attach_arg, 0, 1, mbr);
     if(res)
         goto out_free;
 
@@ -174,7 +169,7 @@ void apply_hai_patches(void){
     //ASM_T_PATCH_K(0x05100198, "nop");
 }
 
-void hook_register_sd(trampoline_state *state){
+int usb_attach_hook(int *sal_parms, int r1, int r2, int r3, int (*sal_attach)(int*)){
     int *server_handle = (int*)state->r[0] -3;
     debug_printf("%s: org server_handle: %p\n", MODULE_NAME, server_handle);
 
@@ -251,7 +246,7 @@ void kern_main()
         }
     }
 
-    trampoline_hook_before(0x107bd9a4, hook_register_sd);
+    trampoline_blreplace(0x1077eea8, usb_attach_hook);
     trampoline_hook_before(0x10740f48, crypto_hook); // hook decrypt call
     trampoline_hook_before(0x10740fe8, crypto_hook); // hook encrypt call
 
