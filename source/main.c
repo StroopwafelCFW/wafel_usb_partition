@@ -126,7 +126,7 @@ void patch_usb_attach_handle(FSSALAttachDeviceArg *attach_arg){
 
 void clone_patch_attach_sd_hanlde(FSSALAttachDeviceArg *attach_arg){
     memcpy(&extra_attach_arg, attach_arg, ATTACH_ARG_SZ);
-    extra_attach_arg.params.type = DEVTYPE_SD;
+    extra_attach_arg.params.device_type = DEVTYPE_SD;
     int res = FSSAL_attach_device(&extra_attach_arg);
     debug_printf("%s: Attached extra handle. res: 0x%X\n", MODULE_NAME, res);
 }
@@ -158,20 +158,16 @@ out_free:
     return ret;
 }
 
-int usb_attach_hook(int *attach_arg, int r1, int r2, int r3, int (*sal_attach)(int*)){
-    int *server_handle = (int*)state->r[0] -3;
-    debug_printf("%s: org server_handle: %p\n", MODULE_NAME, server_handle);
+int usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, int r3, int (*sal_attach)(FSSALAttachDeviceArg*)){
+    int res = read_usb_partition_from_mbr(attach_arg, &sdusb_offset, &sdusb_size);
+    if(res>0){
+        active = true;
 
-    int res = read_usb_partition_from_mbr(server_handle, &sdusb_offset, &sdusb_size);
-    if(res<=0)
-        return;
+        clone_patch_attach_sd_hanlde(attach_arg);
 
-    active = true;
-
-    clone_patch_attach_sd_hanlde(attach_arg);
-
-    patch_usb_attach_handle(attach_arg);
-    learn_usb_crypto_handle = true;
+        patch_usb_attach_handle(attach_arg);
+        learn_usb_crypto_handle = true;
+    }
     return sal_attach(attach_arg);
 }
 

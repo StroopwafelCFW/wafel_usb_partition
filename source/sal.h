@@ -24,7 +24,7 @@ struct FSSALDeviceParams {
     char unk11[128];
 } __attribute__((packed)) typedef FSSALDeviceParams;
 
-static_assert(sizeof(FSSALDeviceParams) == 0x1c8, "FSSALAttachDeviceArg size must be 0x1c8!");
+_Static_assert(sizeof(FSSALDeviceParams) == 0x1c8, "FSSALAttachDeviceArg size must be 0x1c8!");
 
 
 typedef int read_func(void *device_handle, u32 lba_hi, u32 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ct);
@@ -51,8 +51,8 @@ struct FSSALAttachDeviceArg {
 
 #define test sizeof(FSSALAttachDeviceArg)
 
-static_assert(sizeof(FSSALAttachDeviceArg) == 0x1fc, "FSSALAttachDeviceArg size must be 0x1fc!");
+_Static_assert(sizeof(FSSALAttachDeviceArg) == 0x1fc, "FSSALAttachDeviceArg size must be 0x1fc!");
 
 
 
-static int (*FSSAL_attach_device)(int*) = (void*)0x10733aa4;
+static int (*FSSAL_attach_device)(FSSALAttachDeviceArg*) = (void*)0x10733aa4;
