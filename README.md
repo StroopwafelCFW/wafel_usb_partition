@@ -1,11 +1,11 @@
-# wafel_sd_usb
+# wafel_usb_partition
 
-this plugin registers a partition on the SD as USB
+This plugin checks the USB storage device for an MBR. If an MBR is found it will be attached as sdcard. The other three partition slots in the MBR will be checked and the partition with the highest start lba, will be attached as USB.
 
 ## How to use
 
-- Copy the `wafel_sd_usb.ipx` to `sd:/wiiu/ios_plugins` or `/storage_slc/sys/hax/ios_plugins`
-- Create a NTFS partition on the SD (in addition to the FAT32 partition)
+- Copy the `wafel_usb_partition.ipx` to `sd:/wiiu/ios_plugins` or `/storage_slc/sys/hax/ios_plugins`
+- Create one FAT32 partition as the first partition on the USB device. Create a second partition, which will be used as USB.
 
 ## Building
 

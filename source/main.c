@@ -13,7 +13,7 @@
 #include "mbr.h"
 #include "rednand_config.h"
 
-const char* MODULE_NAME = "SDUSB";
+const char* MODULE_NAME = "USBPARTITION";
 
 #define SECTOR_SIZE 512
 #define LOCAL_HEAP_ID 0xCAFE
