@@ -47,7 +47,6 @@ static write_func *real_write;
 bool active = false;
 
 
-static int (*UMS_FSSAL_attach_device)(FSSALAttachDeviceArg*) = (void*)0x107339dc;
 
 static int read_wrapper(void *device_handle, u32 lba_hi, u32 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
     return real_read(device_handle, lba_hi, lba + sdusb_offset, blkCount, blockSize, buf, cb, cb_ctx);
@@ -129,11 +128,11 @@ void patch_usb_attach_handle(FSSALAttachDeviceArg *attach_arg){
 
 int clone_patch_attach_sd_hanlde(FSSALAttachDeviceArg *attach_arg){
     memcpy(&extra_attach_arg, attach_arg, sizeof(FSSALAttachDeviceArg));
-    //extra_attach_arg.params.device_type = DEVTYPE_SD;
-    attach_arg->params.device_type = DEVTYPE_SD;
+    extra_attach_arg.params.device_type = DEVTYPE_SD;
+    //attach_arg->params.device_type = DEVTYPE_SD;
     debug_printf("%s: Attaching USB storage as SD\n", MODULE_NAME);
-    //int res = UMS_FSSAL_attach_device(&extra_attach_arg);
-    int res = UMS_FSSAL_attach_device(attach_arg);
+    int res = FSSAL_attach_device(&extra_attach_arg);
+    //int res = FSSAL_attach_device(attach_arg);
     debug_printf("%s: Attached extra handle. res: 0x%X\n", MODULE_NAME, res);
     return res;
 }

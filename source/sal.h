@@ -47,8 +47,10 @@ struct FSSALAttachDeviceArg {
     uint32_t unk6;
     uint32_t unk7;
 
-} __attribute__((packed)) typedef FSSALAttachDeviceArg;
+} __attribute__((packed)) ALIGNED(4) typedef FSSALAttachDeviceArg;
 
 #define test sizeof(FSSALAttachDeviceArg)
 
 _Static_assert(sizeof(FSSALAttachDeviceArg) == 0x1fc, "FSSALAttachDeviceArg size must be 0x1fc!");
+
+static int (*FSSAL_attach_device)(FSSALAttachDeviceArg*) = (void*)0x10733aa4;
