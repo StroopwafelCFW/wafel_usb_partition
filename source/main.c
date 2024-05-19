@@ -11,7 +11,6 @@
 #include "wafel/ios/prsh.h"
 #include "wafel/hai.h"
 #include "mbr.h"
-#include "rednand_config.h"
 #include "sal.h"
 
 const char* MODULE_NAME = "USBPARTITION";
@@ -244,15 +243,6 @@ void kern_main()
     debug_printf("we in here %s plugin kern %p\n", MODULE_NAME, kern_main);
 
     debug_printf("init_linking symbol at: %08x\n", wafel_find_symbol("init_linking"));
-
-    rednand_config *rednand_conf;
-    size_t rednand_conf_size;
-    if(!prsh_get_entry("rednand", (void**)&rednand_conf, &rednand_conf_size)){
-        if(rednand_conf_size<sizeof(rednand_config_v1) || rednand_conf->mlc.lba_length){
-            debug_printf("%s: detected MLC redirection, %s will be disabled\n", MODULE_NAME, MODULE_NAME);
-            return;
-        }
-    }
 
     trampoline_blreplace(0x1077eea8, usb_attach_hook);
     //trampoline_hook_before(0x10740f48, crypto_hook); // hook decrypt call
