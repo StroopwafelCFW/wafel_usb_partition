@@ -24,8 +24,6 @@ const char* MODULE_NAME = "USBPARTITION";
 // tells crypto to not do crypto (depends on stroopwafel patch)
 #define NO_CRYPTO_HANDLE 0xDEADBEEF
 
-#define ATTACH_ARG_SZ 0x1fc
-
 #define LD_DWORD(ptr)       (u32)(((u32)*((u8*)(ptr)+3)<<24)|((u32)*((u8*)(ptr)+2)<<16)|((u16)*((u8*)(ptr)+1)<<8)|*(u8*)(ptr))
 
 #define FIRST_HANDLE ((int*)0x11c39e78)
@@ -49,6 +47,8 @@ static write_func *real_write;
 bool active = false;
 
 
+static int (*UMS_FSSAL_attach_device)(FSSALAttachDeviceArg*) = (void*)0x107339dc;
+
 static int read_wrapper(void *device_handle, u32 lba_hi, u32 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
     return real_read(device_handle, lba_hi, lba + sdusb_offset, blkCount, blockSize, buf, cb, cb_ctx);
 }
@@ -71,9 +71,12 @@ void apply_hai_patches(void){
     hai_apply_getdev_patch();
 }
 
+static bool is_mbr(mbr_sector* mbr){
+    debug_printf("%s: MBR signature: 0x%04X\n", MODULE_NAME, mbr->boot_signature);
+    return mbr->boot_signature==0x55AA;
+}
+
 static partition_entry* find_usb_partition(mbr_sector* mbr){
-    if(mbr->boot_signature[0]==0x55 && mbr->boot_signature[0]==0xAA)
-        return NULL;
     partition_entry *selected = NULL;
     u32 selected_start = 0;
     for (size_t i = 1; i < MBR_MAX_PARTITIONS; i++){
@@ -124,11 +127,15 @@ void patch_usb_attach_handle(FSSALAttachDeviceArg *attach_arg){
     attach_arg->params.block_count = sdusb_size;
 }
 
-void clone_patch_attach_sd_hanlde(FSSALAttachDeviceArg *attach_arg){
-    memcpy(&extra_attach_arg, attach_arg, ATTACH_ARG_SZ);
-    extra_attach_arg.params.device_type = DEVTYPE_SD;
-    int res = FSSAL_attach_device(&extra_attach_arg);
+int clone_patch_attach_sd_hanlde(FSSALAttachDeviceArg *attach_arg){
+    memcpy(&extra_attach_arg, attach_arg, sizeof(FSSALAttachDeviceArg));
+    //extra_attach_arg.params.device_type = DEVTYPE_SD;
+    attach_arg->params.device_type = DEVTYPE_SD;
+    debug_printf("%s: Attaching USB storage as SD\n", MODULE_NAME);
+    //int res = UMS_FSSAL_attach_device(&extra_attach_arg);
+    int res = UMS_FSSAL_attach_device(attach_arg);
     debug_printf("%s: Attached extra handle. res: 0x%X\n", MODULE_NAME, res);
+    return res;
 }
 
 int read_usb_partition_from_mbr(FSSALAttachDeviceArg *attach_arg, u32* out_offset, u32* out_size){
@@ -142,13 +149,19 @@ int read_usb_partition_from_mbr(FSSALAttachDeviceArg *attach_arg, u32* out_offse
     if(res)
         goto out_free;
 
-    partition_entry *part = find_usb_partition(mbr);
-    if(!part){
-        debug_printf("%s: USB partition not found!!!\n", MODULE_NAME);
+    if(!is_mbr(mbr)){
+        debug_printf("%s: MBR NOT found!!!\n", MODULE_NAME);
         ret = 0;
         goto out_free;
     }
-    ret = 1;
+
+    partition_entry *part = find_usb_partition(mbr);
+    if(!part){
+        debug_printf("%s: USB partition not found!!!\n", MODULE_NAME);
+        ret = 1;
+        goto out_free;
+    }
+    ret = 2;
     *out_offset = LD_DWORD(part->lba_start);
     *out_size = LD_DWORD(part->lba_length);
     debug_printf("%s: USB partition found %p: offset: %u, size: %u\n", MODULE_NAME, part, *out_offset, *out_size);
@@ -160,15 +173,22 @@ out_free:
 
 int usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, int r3, int (*sal_attach)(FSSALAttachDeviceArg*)){
     int res = read_usb_partition_from_mbr(attach_arg, &sdusb_offset, &sdusb_size);
-    if(res>0){
-        active = true;
 
-        clone_patch_attach_sd_hanlde(attach_arg);
+    int ret = 0;
+    if(res) // MBR detected or error
+        ret = clone_patch_attach_sd_hanlde(attach_arg);
 
+    if(res==2) {
         patch_usb_attach_handle(attach_arg);
+        active = true;
+    }
+    
+    if(res == 0 || res == 2){ // direct or partitioned
+        ret = sal_attach(attach_arg);
         learn_usb_crypto_handle = true;
     }
-    return sal_attach(attach_arg);
+
+    return ret;
 }
 
 #ifdef USE_MLC_KEY
