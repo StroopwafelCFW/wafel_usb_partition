@@ -183,6 +183,7 @@ int usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, int r3, in
     }
     
     if(res == 0 || res == 2){ // direct or partitioned
+        debug_printf("Attatching USB partition\n");
         ret = sal_attach(attach_arg);
         learn_usb_crypto_handle = true;
     }
@@ -254,8 +255,8 @@ void kern_main()
     }
 
     trampoline_blreplace(0x1077eea8, usb_attach_hook);
-    trampoline_hook_before(0x10740f48, crypto_hook); // hook decrypt call
-    trampoline_hook_before(0x10740fe8, crypto_hook); // hook encrypt call
+    //trampoline_hook_before(0x10740f48, crypto_hook); // hook decrypt call
+    //trampoline_hook_before(0x10740fe8, crypto_hook); // hook encrypt call
 
 #ifdef USE_MLC_KEY
     trampoline_blreplace(0x107bdae0, mlc_attach_hook);
