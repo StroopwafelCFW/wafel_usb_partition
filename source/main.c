@@ -32,6 +32,7 @@ FSSALAttachDeviceArg extra_attach_arg;
 
 static u32 sdusb_offset = 0xFFFFFFF;
 static u32 sdusb_size = 0xFFFFFFFF;
+static char umsBlkDevID[0x10] ALIGNED(2);
 
 #ifdef USE_MLC_KEY
 u32 mlc_size_sectors = 0;
@@ -55,7 +56,7 @@ static int write_wrapper(void *device_handle, u32 lba_hi, u32 lba, u32 blkCount,
     return real_write(device_handle, lba_hi, lba + sdusb_offset, blkCount, blockSize, buf, cb, cb_ctx);
 }
 
-void hai_write_file_patch(trampoline_t_state *s){
+static void hai_write_file_patch(trampoline_t_state *s){
     uint32_t *buffer = (uint32_t*)s->r[1];
     debug_printf("HAI WRITE COMPANION\n");
     if(active && hai_getdev() == DEVTYPE_USB){
@@ -63,10 +64,22 @@ void hai_write_file_patch(trampoline_t_state *s){
     }
 }
 
-void apply_hai_patches(void){
+static int hai_umsBlkDevId_patch(int entry_id, char* umsdev_id, size_t size, int r3, int(*hai_param_add)(int, char*, size_t)){
+    if(active && hai_getdev() == DEVTYPE_USB){
+        debug_printf("%s: Patching umsdev id to %016llX..\n", MODULE_NAME, *(u64*)umsdev_id);
+        umsdev_id = umsBlkDevID;
+        size = sizeof(umsBlkDevID);
+    }
+    return hai_param_add(entry_id, umsdev_id, size);
+}
+
+static void apply_hai_patches(void){
     trampoline_t_hook_before(0x050078AE, hai_write_file_patch);
-    // hai_write_file_patch needs to knwo the hai dev
+    // hai_write_file_patch needs to know the hai dev
     hai_apply_getdev_patch();
+
+    // replace devid with bytes from MBR (where HAI will look)
+    trampoline_t_blreplace(0x0500900a, hai_umsBlkDevId_patch);
 }
 
 static bool is_mbr(mbr_sector* mbr){
@@ -162,6 +175,7 @@ int read_usb_partition_from_mbr(FSSALAttachDeviceArg *attach_arg, u32* out_offse
     ret = 2;
     *out_offset = LD_DWORD(part->lba_start);
     *out_size = LD_DWORD(part->lba_length);
+    memcpy(umsBlkDevID, mbr, sizeof(umsBlkDevID));
     debug_printf("%s: USB partition found %p: offset: %u, size: %u\n", MODULE_NAME, part, *out_offset, *out_size);
 
 out_free:
