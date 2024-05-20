@@ -173,8 +173,8 @@ int usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, int r3, in
     int res = read_usb_partition_from_mbr(attach_arg, &sdusb_offset, &sdusb_size);
 
     int ret = 0;
-    if(res) // MBR detected or error
-        ret = clone_patch_attach_sd_hanlde(attach_arg);
+    // if(res) // MBR detected or error
+    //    ret = clone_patch_attach_sd_hanlde(attach_arg);
 
     if(res==2) {
         patch_usb_attach_handle(attach_arg);
