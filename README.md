@@ -1,6 +1,8 @@
 # wafel_usb_partition
 
-This plugin checks the USB storage device for an MBR. If an MBR is found it will be attached as sdcard. The other three partition slots in the MBR will be checked and the NTFS partition with the highest start lba, will be attached as USB.
+This plugin checks the USB storage device for an MBR. If an MBR is found ~~it will be attached as sdcard~~ and the other three partition slots in the MBR will be checked. The NTFS partition with the highest start lba, will be attached as USB.
+
+*won't attach the FAT32 for now since it causes problems with Aroma
 
 ## How to use
 
