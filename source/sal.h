@@ -47,7 +47,7 @@ struct FSSALAttachDeviceArg {
     uint32_t unk6;
     uint32_t unk7;
 
-} __attribute__((packed)) ALIGNED(2) typedef FSSALAttachDeviceArg;
+} __attribute__((packed)) ALIGNED(4) typedef FSSALAttachDeviceArg;
 
 #define test sizeof(FSSALAttachDeviceArg)
 
