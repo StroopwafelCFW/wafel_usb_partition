@@ -28,7 +28,9 @@ const char* MODULE_NAME = "USBPARTITION";
 #define FIRST_HANDLE ((int*)0x11c39e78)
 #define HANDLE_END ((int*)0x11c3a420)
 
+#ifdef MOUNT_SD
 FSSALAttachDeviceArg extra_attach_arg;
+#endif
 
 static u32 sdusb_offset = 0xFFFFFFF;
 static u32 sdusb_size = 0xFFFFFFFF;
@@ -138,6 +140,7 @@ void patch_usb_attach_handle(FSSALAttachDeviceArg *attach_arg){
     attach_arg->params.block_count = sdusb_size;
 }
 
+#ifdef MOUNT_SD
 int clone_patch_attach_sd_hanlde(FSSALAttachDeviceArg *attach_arg){
     memcpy(&extra_attach_arg, attach_arg, sizeof(FSSALAttachDeviceArg));
     extra_attach_arg.params.device_type = DEVTYPE_SD;
@@ -148,6 +151,7 @@ int clone_patch_attach_sd_hanlde(FSSALAttachDeviceArg *attach_arg){
     debug_printf("%s: Attached extra handle. res: 0x%X\n", MODULE_NAME, res);
     return res;
 }
+#endif
 
 int read_usb_partition_from_mbr(FSSALAttachDeviceArg *attach_arg, u32* out_offset, u32* out_size){
     mbr_sector *mbr = iosAllocAligned(LOCAL_HEAP_ID, SECTOR_SIZE, 0x40);
@@ -187,8 +191,11 @@ int usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, int r3, in
     int res = read_usb_partition_from_mbr(attach_arg, &sdusb_offset, &sdusb_size);
 
     int ret = 0;
-    // if(res) // MBR detected or error
-    //    ret = clone_patch_attach_sd_hanlde(attach_arg);
+
+#ifdef MOUNT_SD
+    if(res>0) // MBR detected
+        ret = clone_patch_attach_sd_hanlde(attach_arg);
+#endif
 
     if(res==2) {
         patch_usb_attach_handle(attach_arg);
