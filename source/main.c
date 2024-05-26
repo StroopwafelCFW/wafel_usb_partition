@@ -45,6 +45,7 @@ static volatile bool learn_usb_crypto_handle = false;
 
 static read_func *real_read;
 static write_func *real_write;
+static sync_func *real_sync;
 
 bool active = false;
 
@@ -56,6 +57,10 @@ static int read_wrapper(void *device_handle, u64 lba, u32 blkCount, u32 blockSiz
 
 static int write_wrapper(void *device_handle, u64 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
     return real_write(device_handle, lba + sdusb_offset, blkCount, blockSize, buf, cb, cb_ctx);
+}
+
+static int sync_wrapper(int server_handle, u64 lba, u32 num_blocks, void * cb, void * cb_ctx){
+    return real_sync(server_handle, lba + sdusb_offset, num_blocks, cb, cb_ctx);
 }
 
 static void hai_write_file_patch(trampoline_t_state *s){
@@ -131,10 +136,12 @@ static int sync_read(FSSALAttachDeviceArg* attach_arg, u64 lba, u32 blkCount, vo
 void patch_usb_attach_handle(FSSALAttachDeviceArg *attach_arg){
     real_read = attach_arg->op_read;
     real_write = attach_arg->op_write;
+    real_sync = attach_arg->opsync;
     attach_arg->op_read = read_wrapper;
     attach_arg->op_write = write_wrapper;
     attach_arg->op_read2 = crash_and_burn;
     attach_arg->op_write2 = crash_and_burn;
+    attach_arg->opsync = sync_wrapper;
     attach_arg->params.device_type = DEVTYPE_USB;
     attach_arg->params.max_lba_size = sdusb_size -1;
     attach_arg->params.block_count = sdusb_size;
