@@ -68,7 +68,7 @@ int write_wrapper(void *device_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32
 
 int sync_wrapper(int server_handle, u32 lba_hi, u32 lba_lo, u32 num_blocks, void * cb, void * cb_ctx){
     ADD_OFFSET(lba_hi, lba_lo);
-    debug_printf("%s: sync called lba: %d, num_blocks: %d\n", MODULE_NAME, lba_lo, num_blocks);
+    //debug_printf("%s: sync called lba: %d, num_blocks: %d\n", MODULE_NAME, lba_lo, num_blocks);
     return real_sync(server_handle, lba_hi, lba_lo, num_blocks, cb, cb_ctx);
 }
 
