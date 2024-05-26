@@ -50,12 +50,12 @@ bool active = false;
 
 
 
-static int read_wrapper(void *device_handle, u32 lba_hi, u32 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
-    return real_read(device_handle, lba_hi, lba + sdusb_offset, blkCount, blockSize, buf, cb, cb_ctx);
+static int read_wrapper(void *device_handle, u64 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
+    return real_read(device_handle, lba + sdusb_offset, blkCount, blockSize, buf, cb, cb_ctx);
 }
 
-static int write_wrapper(void *device_handle, u32 lba_hi, u32 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
-    return real_write(device_handle, lba_hi, lba + sdusb_offset, blkCount, blockSize, buf, cb, cb_ctx);
+static int write_wrapper(void *device_handle, u64 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
+    return real_write(device_handle, lba + sdusb_offset, blkCount, blockSize, buf, cb, cb_ctx);
 }
 
 static void hai_write_file_patch(trampoline_t_state *s){
@@ -113,13 +113,13 @@ static void read_callback(int res, cb_ctx *ctx){
 }
 
 
-static int sync_read(FSSALAttachDeviceArg* attach_arg, u32 lba, u32 blkCount, void *buf){
+static int sync_read(FSSALAttachDeviceArg* attach_arg, u64 lba, u32 blkCount, void *buf){
     cb_ctx ctx = {iosCreateSemaphore(1,0)};
     if(ctx.semaphore < 0){
         debug_printf("%s: Error creating Semaphore: 0x%X\n", MODULE_NAME, ctx.semaphore);
         return ctx.semaphore;
     }
-    int res = attach_arg->op_read(attach_arg->server_handle, 0, lba, blkCount, SECTOR_SIZE, buf, read_callback, &ctx);
+    int res = attach_arg->op_read(attach_arg->server_handle, lba, blkCount, SECTOR_SIZE, buf, read_callback, &ctx);
     if(!res){
         iosWaitSemaphore(ctx.semaphore, 0);
         res = ctx.res;

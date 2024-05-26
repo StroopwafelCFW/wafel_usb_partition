@@ -27,9 +27,9 @@ struct FSSALDeviceParams {
 _Static_assert(sizeof(FSSALDeviceParams) == 0x1c8, "FSSALAttachDeviceArg size must be 0x1c8!");
 
 
-typedef int read_func(void *device_handle, u32 lba_hi, u32 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ct);
-typedef int write_func(void *device_handle, u32 lba_hi, u32 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ct);
-typedef int sync_func(int server_handle, uint32_t lba, uint32_t b, uint32_t c, void * cb, void * cb_ctx);
+typedef int read_func(void *device_handle, u64 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ct);
+typedef int write_func(void *device_handle, u64 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ct);
+typedef int sync_func(int server_handle, u64 lba, u32 num_blocks, void * cb, void * cb_ctx);
 
 struct FSSALAttachDeviceArg {
     void *server_handle;
