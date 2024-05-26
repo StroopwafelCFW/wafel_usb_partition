@@ -49,18 +49,27 @@ static sync_func *real_sync;
 
 bool active = false;
 
+#define ADD_OFFSET(high, low) do { \
+    unsigned long long combined = ((unsigned long long)(high) << 32) | (low); \
+    combined += sdusb_offset; \
+    (high) = (unsigned int)(combined >> 32); \
+    (low) = (unsigned int)(combined & 0xFFFFFFFF); \
+} while (0)
 
-
-static int read_wrapper(void *device_handle, u64 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
-    return real_read(device_handle, lba + sdusb_offset, blkCount, blockSize, buf, cb, cb_ctx);
+int read_wrapper(void *device_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
+    ADD_OFFSET(lba_hi, lba_lo);
+    return real_read(device_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx);
 }
 
-static int write_wrapper(void *device_handle, u64 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
-    return real_write(device_handle, lba + sdusb_offset, blkCount, blockSize, buf, cb, cb_ctx);
+int write_wrapper(void *device_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
+    ADD_OFFSET(lba_hi, lba_lo);
+    return real_write(device_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx);
 }
 
-static int sync_wrapper(int server_handle, u64 lba, u32 num_blocks, void * cb, void * cb_ctx){
-    return real_sync(server_handle, lba + sdusb_offset, num_blocks, cb, cb_ctx);
+int sync_wrapper(int server_handle, u32 lba_hi, u32 lba_lo, u32 num_blocks, void * cb, void * cb_ctx){
+    ADD_OFFSET(lba_hi, lba_lo);
+    debug_printf("%s: sync called lba: %d, num_blocks: %d\n", MODULE_NAME, lba_lo, num_blocks);
+    return real_sync(server_handle, lba_hi, lba_lo, num_blocks, cb, cb_ctx);
 }
 
 static void hai_write_file_patch(trampoline_t_state *s){
@@ -124,7 +133,7 @@ static int sync_read(FSSALAttachDeviceArg* attach_arg, u64 lba, u32 blkCount, vo
         debug_printf("%s: Error creating Semaphore: 0x%X\n", MODULE_NAME, ctx.semaphore);
         return ctx.semaphore;
     }
-    int res = attach_arg->op_read(attach_arg->server_handle, lba, blkCount, SECTOR_SIZE, buf, read_callback, &ctx);
+    int res = attach_arg->op_read(attach_arg->server_handle, lba>>32, (u32)lba, blkCount, SECTOR_SIZE, buf, read_callback, &ctx);
     if(!res){
         iosWaitSemaphore(ctx.semaphore, 0);
         res = ctx.res;
