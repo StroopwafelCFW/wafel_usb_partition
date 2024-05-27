@@ -142,7 +142,7 @@ static int sync_read(FSSALAttachDeviceArg* attach_arg, u64 lba, u32 blkCount, vo
     return res;
 }
 
-void patch_usb_attach_handle(FSSALAttachDeviceArg *attach_arg){
+void patch_usb_attach_arg(FSSALAttachDeviceArg *attach_arg){
     real_read = attach_arg->op_read;
     real_write = attach_arg->op_write;
     real_sync = attach_arg->opsync;
@@ -170,7 +170,7 @@ int clone_patch_attach_sd_hanlde(FSSALAttachDeviceArg *attach_arg){
 #endif
 
 int read_usb_partition_from_mbr(FSSALAttachDeviceArg *attach_arg, u32* out_offset, u32* out_size){
-    mbr_sector *mbr = iosAllocAligned(LOCAL_HEAP_ID, SECTOR_SIZE, 0x40);
+    mbr_sector *mbr = iosAllocAligned(LOCAL_HEAP_ID, max(attach_arg->params.block_size, SECTOR_SIZE), 0x40);
     if(!mbr){
         debug_printf("%s: Failed to allocate IO buf\n", MODULE_NAME);
         return -1;
@@ -214,7 +214,7 @@ int usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, int r3, in
 #endif
 
     if(res==2) {
-        patch_usb_attach_handle(attach_arg);
+        patch_usb_attach_arg(attach_arg);
         active = true;
     }
     
