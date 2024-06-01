@@ -12,11 +12,13 @@
 #include "wafel/hai.h"
 #include "sal.h"
 #include "sal_partition.h"
+#include "sal_mbr.h"
 
 // tells crypto to not do crypto (depends on stroopwafel patch)
 #define NO_CRYPTO_HANDLE 0xDEADBEEF
 
 static bool active = false;
+static char umsBlkDevID[0x10] ALIGNED(4);
 
 #ifdef MOUNT_SD
 FSSALAttachDeviceArg extra_attach_arg;
@@ -69,7 +71,7 @@ int clone_patch_attach_sd_hanlde(FSSALAttachDeviceArg *attach_arg){
 #endif
 
 int usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, int r3, int (*sal_attach)(FSSALAttachDeviceArg*)){
-    int res = read_usb_partition_from_mbr(attach_arg, &partition_offset, &partition_size);
+    int res = read_usb_partition_from_mbr(attach_arg, &partition_offset, &partition_size, umsBlkDevID);
 
     int ret = 0;
 
@@ -79,7 +81,7 @@ int usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, int r3, in
 #endif
 
     if(res==2) {
-        patch_partition_attach_arg(attach_arg);
+        patch_partition_attach_arg(attach_arg, DEVTYPE_USB);
         active = true;
     }
     
