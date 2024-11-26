@@ -61,10 +61,12 @@ static void apply_hai_patches(void){
 int clone_patch_attach_sd_hanlde(FSSALAttachDeviceArg *attach_arg){
     memcpy(&extra_attach_arg, attach_arg, sizeof(FSSALAttachDeviceArg));
     extra_attach_arg.params.device_type = DEVTYPE_SD;
-    //attach_arg->params.device_type = DEVTYPE_SD;
+    if(extra_attach_arg.params.block_count > UINT32_MAX){
+        extra_attach_arg.params.block_count = UINT32_MAX;
+        extra_attach_arg.params.max_lba_size = UINT32_MAX -1;
+    }
     debug_printf("%s: Attaching USB storage as SD\n", PLUGIN_NAME);
     int res = FSSAL_attach_device(&extra_attach_arg);
-    //int res = FSSAL_attach_device(attach_arg);
     debug_printf("%s: Attached extra handle. res: 0x%X\n", PLUGIN_NAME, res);
     return res;
 }
