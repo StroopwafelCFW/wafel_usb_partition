@@ -161,6 +161,11 @@ void kern_main()
     // somehow it causes crashes when applied from the attach hook
     apply_hai_patches();
 
+#ifdef MOUNT_SD
+    // prfile look at the first partition
+    ASM_PATCH_K(0x10793234, "cmp r4, r4");
+#endif
+
     debug_printf("%s: patches applied\n", PLUGIN_NAME);
 
     //trampoline_hook_before(0x10740f2c, test_hook);
