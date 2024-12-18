@@ -41,9 +41,10 @@ static int scsi_read16(void *ums_server, void *ums_tp, u8 lun, u32 timeout, void
 
 int ums_read_hook(void *ums_server, void *ums_tp, u8 lun, u32 timeout, int r4, int r5, int r6, u32 *r7, int r8, int r9, int r10, int r11, 
                       ums_read_func *org_read, const void *lr, void *buf, u32 lba, u16 transfer_length, u32 buf_len, void *event) {
-  int lba_hi = r7[0x5c/4];
-  if(lba_hi)
-    return scsi_read16(ums_server, ums_tp, lun, timeout, buf, lba_hi, lba, transfer_length, buf_len, event);
+  // int lba_hi = r7[0x5c/4];
+  // if(lba_hi)
+  //   return scsi_read16(ums_server, ums_tp, lun, timeout, buf, lba_hi, lba, transfer_length, buf_len, event);
+
 
   return org_read(ums_server, ums_tp, lun, timeout, buf, lba, transfer_length, buf_len, event);
 }
@@ -94,7 +95,7 @@ int scsi_sync_cache16(void *ums_server, void *ums_tp, u8 lun, u32 timeout, u32 l
     .number_blocks = num_blocks,    
   };
 
-  return UmsTpMakeTransferRequest(ums_server, ums_tp, 1, lun, &cmd, sizeof(cmd), NULL, 0, timeout, event);
+  return UmsTpMakeTransferRequest(ums_server, ums_tp, 2, lun, &cmd, sizeof(cmd), NULL, 0, timeout, event);
 }
 
 int ums_sync_hook(void *ums_server, void *ums_tp, u8 lun, u32 timeout, int r4, int r5, int r6, u32 *r7, int r8, int r9, int r10, int r11, 
@@ -111,6 +112,6 @@ int ums_sync_hook(void *ums_server, void *ums_tp, u8 lun, u32 timeout, int r4, i
 
 void patch_ums_lba64(void) {
   trampoline_blreplace_with_regs(0x1077fbc4, ums_read_hook);
-  trampoline_blreplace_with_regs(0x1077fb34, ums_write_hook);
-  trampoline_blreplace_with_regs(0x1077fbfc, ums_sync_hook);
+  //trampoline_blreplace_with_regs(0x1077fb34, ums_write_hook);
+  //trampoline_blreplace_with_regs(0x1077fbfc, ums_sync_hook);
 }
