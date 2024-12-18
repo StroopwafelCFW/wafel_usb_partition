@@ -112,4 +112,5 @@ int ums_sync_hook(void *ums_server, void *ums_tp, u8 lun, u32 timeout, int r4, i
 void patch_ums_lba64(void) {
   trampoline_blreplace_with_regs(0x1077fbc4, ums_read_hook);
   trampoline_blreplace_with_regs(0x1077fb34, ums_write_hook);
+  trampoline_blreplace_with_regs(0x1077fbfc, ums_sync_hook);
 }
