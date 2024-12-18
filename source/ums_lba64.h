@@ -1,0 +1,1 @@
+void patch_ums_lba64(void);

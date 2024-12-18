@@ -13,6 +13,7 @@
 #include "sal.h"
 #include "sal_partition.h"
 #include "sal_mbr.h"
+#include "ums_lba64.h"
 
 // tells crypto to not do crypto (depends on stroopwafel patch)
 #define NO_CRYPTO_HANDLE 0xDEADBEEF
@@ -149,6 +150,8 @@ void kern_main()
     debug_printf("we in here %s plugin kern %p\n", PLUGIN_NAME, kern_main);
 
     debug_printf("init_linking symbol at: %08x\n", wafel_find_symbol("init_linking"));
+
+    patch_ums_lba64();
 
     trampoline_blreplace(0x1077eea8, usb_attach_hook);
     //trampoline_hook_before(0x10740f48, crypto_hook); // hook decrypt call
