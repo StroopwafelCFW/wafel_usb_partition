@@ -1,4 +1,4 @@
-#include <trampoline.h>
+#include <wafel/trampoline.h>
 
 int (*UmsTpMakeTransferRequest)
               (void *ums_server, void *ums_tp, u32 endpoint,u8 bCBWLUN,void *CBWCB,
@@ -28,7 +28,7 @@ struct rw16_cmd {
 
 _Static_assert(sizeof(rw16_cmd) == 16, "read16_cmd size must be 16!");
 
-static int scsi_read16(void *ums_server, void *ums_tp, u8 lun, u32 timeout, void *buf, u32 lba, u32 lba_hi, u16 transfer_length, u32 buf_len, void *event){
+static int scsi_read16(void *ums_server, void *ums_tp, u8 lun, u32 timeout, void *buf, u32 lba_hi, u32 lba, u16 transfer_length, u32 buf_len, void *event){
   rw16_cmd cmd = {
     .opcode = 0x88,
     .lba_hi = lba_hi,
@@ -43,13 +43,13 @@ int ums_read_hook(void *ums_server, void *ums_tp, u8 lun, u32 timeout, int r4, i
                       ums_read_func *org_read, const void *lr, void *buf, u32 lba, u16 transfer_length, u32 buf_len, void *event) {
   int lba_hi = r7[0x5c/4];
   if(lba_hi)
-    return scsi_read16(ums_server, ums_tp, lun, timeout, buf, lba, lba_hi, transfer_length, buf_len, event);
+    return scsi_read16(ums_server, ums_tp, lun, timeout, buf, lba_hi, lba, transfer_length, buf_len, event);
 
   return org_read(ums_server, ums_tp, lun, timeout, buf, lba, transfer_length, buf_len, event);
 }
 
 
-static int scsi_write16(void *ums_server, void *ums_tp, u8 lun, u32 timeout, void *buf, u32 lba, u32 lba_hi, u16 transfer_length, u32 buf_len, void *event){
+static int scsi_write16(void *ums_server, void *ums_tp, u8 lun, u32 timeout, void *buf, u32 lba_hi, u32 lba, u16 transfer_length, u32 buf_len, void *event){
   rw16_cmd cmd = {
     .opcode = 0x8a,
     .lba_hi = lba_hi,
@@ -64,7 +64,7 @@ int ums_write_hook(void *ums_server, void *ums_tp, u8 lun, u32 timeout, int r4, 
                       ums_write_func *org_write, const void *lr, void *buf, u32 lba, u16 transfer_length, u32 buf_len, void *event) {
   int lba_hi = r7[0x5c/4];
   if(lba_hi)
-    return scsi_write16(ums_server, ums_tp, lun, timeout, buf, lba, lba_hi, transfer_length, buf_len, event);
+    return scsi_write16(ums_server, ums_tp, lun, timeout, buf, lba_hi, lba, transfer_length, buf_len, event);
 
   return org_write(ums_server, ums_tp, lun, timeout, buf, lba, transfer_length, buf_len, event);
 }
@@ -86,7 +86,7 @@ struct sync16_cmd {
 
 _Static_assert(sizeof(sync16_cmd) == 16, "sync16_cmd size must be 16!");
 
-int scsi_sync_cache16(void *ums_server, void *ums_tp, u8 lun, u32 timeout, u32 lba, u32 lba_hi, u16 num_blocks, void *event){
+int scsi_sync_cache16(void *ums_server, void *ums_tp, u8 lun, u32 timeout, u32 lba_hi, u32 lba,  u16 num_blocks, void *event){
   sync16_cmd cmd = {
     .opcode = 0x91,
     .lba_hi = lba_hi,
@@ -101,7 +101,7 @@ int ums_sync_hook(void *ums_server, void *ums_tp, u8 lun, u32 timeout, int r4, i
                       ums_sync_func *org_sync, const void *lr, u32 lba, u16 num_blocks, void *event) {
   int lba_hi = r7[0x5c/4];
   if(lba_hi)
-    return;
+    return scsi_sync_cache16(ums_server, ums_tp, lun, timeout, lba_hi, lba, num_blocks, event);
   
   return org_sync(ums_server, ums_tp, lun, timeout, lba, num_blocks, event);
 }
