@@ -2,6 +2,8 @@
 #include <wafel/utils.h>
 #include <wafel/patch.h>
 
+#define FORCE_CMD16 0
+
 int (*UmsTpMakeTransferRequest)
               (void *ums_server, void *ums_tp, u32 endpoint,u8 bCBWLUN,void *CBWCB,
               size_t bCBWCBLength, void *xfer_buf, u32 bytes_to_transfer, u32 timeout, void *local_event
@@ -49,7 +51,7 @@ int ums_read_hook(void *ums_server, void *ums_tp, u8 lun, u32 timeout, int r4, i
   int lba_hi = r7[0x5c/4];
   //debug_printf("ums read: lba_hi: %u, lba: %u, length: %u event: %p\n", lba_hi, lba, transfer_length, event);
   //*(int*)(ums_server + 0x134) = 1; // enables Tp Fsm Tracing
-  if(lba_hi)
+  if(FORCE_CMD16 || lba_hi)
     return scsi_read16(ums_server, ums_tp, lun, timeout, buf, lba_hi, lba, transfer_length, buf_len, event);
 
   return org_read(ums_server, ums_tp, lun, timeout, buf, lba, transfer_length, buf_len, event);
@@ -70,7 +72,7 @@ static int scsi_write16(void *ums_server, void *ums_tp, u8 lun, u32 timeout, voi
 int ums_write_hook(void *ums_server, void *ums_tp, u8 lun, u32 timeout, int r4, int r5, int r6, u32 *r7, int r8, int r9, int r10, int r11, 
                       ums_write_func *org_write, const void *lr, void *buf, u32 lba, u16 transfer_length, u32 buf_len, void *event) {
   int lba_hi = r7[0x5c/4];
-  if(lba_hi)
+  if(FORCE_CMD16 || lba_hi)
     return scsi_write16(ums_server, ums_tp, lun, timeout, buf, lba_hi, lba, transfer_length, buf_len, event);
 
   return org_write(ums_server, ums_tp, lun, timeout, buf, lba, transfer_length, buf_len, event);
@@ -107,7 +109,7 @@ int scsi_sync_cache16(void *ums_server, void *ums_tp, u8 lun, u32 timeout, u32 l
 int ums_sync_hook(void *ums_server, void *ums_tp, u8 lun, u32 timeout, int r4, int r5, int r6, u32 *r7, int r8, int r9, int r10, int r11, 
                       ums_sync_func *org_sync, const void *lr, u32 lba, u16 num_blocks, void *event) {
   int lba_hi = r7[0x5c/4];
-  if(lba_hi)
+  if(FORCE_CMD16 || lba_hi)
     return scsi_sync_cache16(ums_server, ums_tp, lun, timeout, lba_hi, lba, num_blocks, event);
   
   return org_sync(ums_server, ums_tp, lun, timeout, lba, num_blocks, event);
