@@ -36,7 +36,10 @@ static int scsi_read16(void *ums_server, void *ums_tp, u8 lun, u32 timeout, void
     .transfer_length = transfer_length,    
   };
 
-  return UmsTpMakeTransferRequest(ums_server, ums_tp, 2, lun, &cmd, sizeof(cmd), buf, transfer_length, timeout, event);
+  //u8 *c = (u8*) &cmd;
+  //debug_printf("scsi read: %02x\nflg: %02x\nlba: %02x %02x %02x %02x %02x %02x %02x %02x\nlen: %02x %02x %02x %02x\ngrp: %02x\nctl: %02x\n", c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], c[9], c[10], c[11], c[12], c[13], c[14], c[15]);
+
+  return UmsTpMakeTransferRequest(ums_server, ums_tp, 2, lun, &cmd, sizeof(cmd), buf, buf_len, timeout, event);
 }
 
 int ums_read_hook(void *ums_server, void *ums_tp, u8 lun, u32 timeout, int r4, int r5, int r6, u32 *r7, int r8, int r9, int r10, int r11, 
@@ -57,7 +60,7 @@ static int scsi_write16(void *ums_server, void *ums_tp, u8 lun, u32 timeout, voi
     .transfer_length = transfer_length,    
   };
 
-  return UmsTpMakeTransferRequest(ums_server, ums_tp, 1, lun, &cmd, sizeof(cmd), buf, transfer_length, timeout, event);
+  return UmsTpMakeTransferRequest(ums_server, ums_tp, 1, lun, &cmd, sizeof(cmd), buf, buf_len, timeout, event);
 }
 
 int ums_write_hook(void *ums_server, void *ums_tp, u8 lun, u32 timeout, int r4, int r5, int r6, u32 *r7, int r8, int r9, int r10, int r11, 
