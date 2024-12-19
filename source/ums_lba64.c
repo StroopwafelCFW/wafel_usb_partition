@@ -1,4 +1,6 @@
 #include <wafel/trampoline.h>
+#include <wafel/utils.h>
+#include <wafel/patch.h>
 
 int (*UmsTpMakeTransferRequest)
               (void *ums_server, void *ums_tp, u32 endpoint,u8 bCBWLUN,void *CBWCB,
@@ -45,6 +47,8 @@ static int scsi_read16(void *ums_server, void *ums_tp, u8 lun, u32 timeout, void
 int ums_read_hook(void *ums_server, void *ums_tp, u8 lun, u32 timeout, int r4, int r5, int r6, u32 *r7, int r8, int r9, int r10, int r11, 
                       ums_read_func *org_read, const void *lr, void *buf, u32 lba, u16 transfer_length, u32 buf_len, void *event) {
   int lba_hi = r7[0x5c/4];
+  //debug_printf("ums read: lba_hi: %u, lba: %u, length: %u event: %p\n", lba_hi, lba, transfer_length, event);
+  //*(int*)(ums_server + 0x134) = 1; // enables Tp Fsm Tracing
   if(lba_hi)
     return scsi_read16(ums_server, ums_tp, lun, timeout, buf, lba_hi, lba, transfer_length, buf_len, event);
 
@@ -109,11 +113,73 @@ int ums_sync_hook(void *ums_server, void *ums_tp, u8 lun, u32 timeout, int r4, i
   return org_sync(ums_server, ums_tp, lun, timeout, lba, num_blocks, event);
 }
 
+static const char *states[] = {
+  "NULL",
+  "IDLE",
+  "COMMAND",
+  "TRANSFER",
+  "STATUS",
+  "DESTROY",
+  "DESTROYED",
+};
 
+static const char *events[] = {
+  "INVALID",
+  "ENTRY",
+  "EXIT",
+  "INIT",
+  "START",
+  "COMMAND_BULK_DONE",
+  "XFER_BULK_DONE",
+  "STATUS_BULK_DONE",
+  "IN_STALL_RECOVERY",
+  "OUT_STALL_RECOVERY",
+  "TIMEOUT",
+  "DESTROY_REQUEST",
+  "CONFIRM",
+  "ERROR"
+};
 
+static void UmsTpFsmProcessState_hook(trampoline_state *regs){
+  int state = regs->r[1];
+  int event = regs->r[2];
+  debug_printf("UmsTpFsmProcessState_hook: state: %s, event: %s\n", states[state], events[event]);
+}
+
+static void bulk_done_hook(trampoline_state *regs){
+  u8 *arg= (void*) regs->r[4];
+
+  debug_printf("XFER_BULK_DONE_hook: CBWCB: %02x %02x %02x %02x\n", arg[4], arg[5], arg[6], arg[7]);
+
+}
+
+static void UmsTpMakeTransferRequest_hook(trampoline_state *regs){
+  u8 *cbwcb = (u8*) regs->r[12];
+  if((void*)regs->stack[10] != cbwcb){
+    debug_printf("WARNING: Wrong stack offset\n");
+  }
+  u32 cbwcb_len = regs->stack[11];
+  debug_printf("UmsTpMakeTransferRequest: CBWCB len=%d\nCBWCB=", cbwcb_len);
+  for(int i=0; i<cbwcb_len; i++){
+    debug_printf("%02X ", cbwcb[i]);
+  }
+  debug_printf("\n");
+}
 
 void patch_ums_lba64(void) {
   trampoline_blreplace_with_regs(0x1077fbc4, ums_read_hook);
-  trampoline_blreplace_with_regs(0x1077fb34, ums_write_hook);
-  trampoline_blreplace_with_regs(0x1077fbfc, ums_sync_hook);
+
+  /* DEBUG STUFF */
+  //trampoline_blreplace_with_regs(0x1077fb34, ums_write_hook);
+  //trampoline_blreplace_with_regs(0x1077fbfc, ums_sync_hook);
+
+  //trampoline_hook_before(0x107827c4, UmsTpFsmProcessState_hook);
+  //trampoline_hook_before(0x10782de4, bulk_done_hook);
+
+  //trampoline_hook_before(0x10783778, UmsTpMakeTransferRequest_hook);
+
+  //enable logging
+  // ASM_PATCH_K(0x107f080c, "cmp r3, r3");
+  // ASM_PATCH_K(0x107f07f8, "nop");
+  // ASM_PATCH_K(0x107f0800, "nop");
 }
