@@ -2,7 +2,7 @@
 #include <wafel/utils.h>
 #include <wafel/patch.h>
 
-#define FORCE_CMD16 1
+#define FORCE_CMD16 0
 
 int (*UmsTpMakeTransferRequest)
               (void *ums_server, void *ums_tp, u32 endpoint,u8 bCBWLUN,void *CBWCB,
