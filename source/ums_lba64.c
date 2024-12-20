@@ -2,7 +2,7 @@
 #include <wafel/utils.h>
 #include <wafel/patch.h>
 
-#define FORCE_CMD16 0
+#define FORCE_CMD16 1
 
 int (*UmsTpMakeTransferRequest)
               (void *ums_server, void *ums_tp, u32 endpoint,u8 bCBWLUN,void *CBWCB,
@@ -170,10 +170,10 @@ static void UmsTpMakeTransferRequest_hook(trampoline_state *regs){
 
 void patch_ums_lba64(void) {
   trampoline_blreplace_with_regs(0x1077fbc4, ums_read_hook);
+  trampoline_blreplace_with_regs(0x1077fb34, ums_write_hook);
+  trampoline_blreplace_with_regs(0x1077fbfc, ums_sync_hook);
 
   /* DEBUG STUFF */
-  //trampoline_blreplace_with_regs(0x1077fb34, ums_write_hook);
-  //trampoline_blreplace_with_regs(0x1077fbfc, ums_sync_hook);
 
   //trampoline_hook_before(0x107827c4, UmsTpFsmProcessState_hook);
   //trampoline_hook_before(0x10782de4, bulk_done_hook);
