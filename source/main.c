@@ -165,7 +165,7 @@ void kern_main()
     apply_hai_patches();
 
 #ifdef MOUNT_SD
-    // prfile look at the first partition
+    // prfile look at the first partition only
     ASM_PATCH_K(0x10793234, "cmp r4, r4");
 #endif
 
