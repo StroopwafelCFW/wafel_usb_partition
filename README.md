@@ -1,8 +1,10 @@
 # wafel_usb_partition
 
-This plugin checks the USB storage device for an MBR. If an MBR is found ~~it will be attached as sdcard~~ and the other three partition slots in the MBR will be checked. The NTFS partition with the highest start lba, will be attached as USB.
+This plugin checks the USB storage device for an MBR. If an MBR is found, the first partition will be ignored and the other three partition slots in the MBR will be checked. The NTFS partition with the highest start lba, will be attached as USB.
 
-*won't attach the FAT32 for now since it causes problems with Aroma
+### sd emulation
+
+the SD version of the plugin will attach the first usb device as SD card. So the first partition will be seen as SD card by the Wii U
 
 ## How to use
 
