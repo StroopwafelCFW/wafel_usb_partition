@@ -6,7 +6,6 @@
 #include "sal_partition.h"
 
 #define LOCAL_HEAP_ID 0xCAFE
-#define SECTOR_SIZE 512
 
 #define LD_DWORD(ptr)       (u32)(((u32)*((u8*)(ptr)+3)<<24)|((u32)*((u8*)(ptr)+2)<<16)|((u16)*((u8*)(ptr)+1)<<8)|*(u8*)(ptr))
 
@@ -45,7 +44,7 @@ static int sync_read(FSSALAttachDeviceArg* attach_arg, u64 lba, u32 blkCount, vo
         debug_printf("%s: Error creating Semaphore: 0x%X\n", PLUGIN_NAME, ctx.semaphore);
         return ctx.semaphore;
     }
-    int res = attach_arg->op_read(attach_arg->server_handle, lba>>32, lba, blkCount, SECTOR_SIZE, buf, read_callback, &ctx);
+    int res = attach_arg->op_read(attach_arg->server_handle, lba>>32, lba, blkCount, attach_arg->params.block_size, buf, read_callback, &ctx);
     if(!res){
         iosWaitSemaphore(ctx.semaphore, 0);
         res = ctx.res;
@@ -55,13 +54,14 @@ static int sync_read(FSSALAttachDeviceArg* attach_arg, u64 lba, u32 blkCount, vo
 }
 
 int read_usb_partition_from_mbr(FSSALAttachDeviceArg *attach_arg, u32* out_offset, u32* out_size, u8* out_umsBlkDevID){
-    mbr_sector *mbr = iosAllocAligned(LOCAL_HEAP_ID, max(attach_arg->params.block_size, SECTOR_SIZE), 0x40);
+    size_t mbr_size = max(attach_arg->params.block_size, sizeof(mbr_sector));
+    mbr_sector *mbr = iosAllocAligned(LOCAL_HEAP_ID, max(attach_arg->params.block_size, mbr_size), 0x40);
     if(!mbr){
         debug_printf("%s: Failed to allocate IO buf\n", PLUGIN_NAME);
         return -1;
     }
     int ret = -2;
-    int res = sync_read(attach_arg, 0, 1, mbr);
+    int res = sync_read(attach_arg, 0, mbr_size / attach_arg->params.block_size, mbr);
     if(res)
         goto out_free;
 
