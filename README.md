@@ -8,7 +8,7 @@ the SD version of the plugin will attach the first usb device as SD card. So the
 
 ## How to use
 
-- Copy the `wafel_usb_partition.ipx` to `sd:/wiiu/ios_plugins` or `/storage_slc/sys/hax/ios_plugins`
+- Copy the `5usbpart.ipx` or `5upartsd.ipx` (for sd emulation) to `sd:/wiiu/ios_plugins` or `/storage_slc/sys/hax/ios_plugins`
 - Create one FAT32 partition as the first partition on the USB device. Create a second partition, which will be used as USB.
 
 ## Building
