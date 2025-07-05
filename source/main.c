@@ -84,7 +84,7 @@ int usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, int r3, in
 #endif
 
     if(res==2) {
-        patch_partition_attach_arg(attach_arg, DEVTYPE_USB);
+        patch_partition_attach_arg(attach_arg);
         active = true;
     }
     

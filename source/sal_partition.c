@@ -50,7 +50,7 @@ static void writeop2_crash(int *device_handle, u32 lba_hi, u32 lba, u32 blkCount
     crash_and_burn();
 }
 
-void patch_partition_attach_arg(FSSALAttachDeviceArg *attach_arg, int device_type){
+void patch_partition_attach_arg(FSSALAttachDeviceArg *attach_arg){
     real_read = attach_arg->op_read;
     real_write = attach_arg->op_write;
     real_sync = attach_arg->opsync;
@@ -59,7 +59,7 @@ void patch_partition_attach_arg(FSSALAttachDeviceArg *attach_arg, int device_typ
     attach_arg->op_read2 = readop2_crash;
     attach_arg->op_write2 = writeop2_crash;
     attach_arg->opsync = sync_wrapper;
-    attach_arg->params.device_type = device_type;
+    //attach_arg->params.device_type = device_type;
     attach_arg->params.max_lba_size = partition_size -1;
     attach_arg->params.block_count = partition_size;
 }
