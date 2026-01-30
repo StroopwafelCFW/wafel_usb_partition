@@ -73,6 +73,20 @@ int clone_patch_attach_sd_hanlde(FSSALAttachDeviceArg *attach_arg){
 }
 #endif
 
+static int dummy(){
+    return -1;
+}
+
+void patch_dummy_attach_arg(FSSALAttachDeviceArg *attach_arg){
+    attach_arg->op_read = dummy;
+    attach_arg->op_write = dummy;
+    attach_arg->op_read2 = dummy;
+    attach_arg->op_write2 = dummy;
+    attach_arg->opsync = dummy;
+    attach_arg->params.max_lba_size = 0;
+    attach_arg->params.block_count = 0;
+}
+
 int usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, int r3, int (*sal_attach)(FSSALAttachDeviceArg*)){
     int res = read_usb_partition_from_mbr(attach_arg, &partition_offset, &partition_size, umsBlkDevID);
 
@@ -83,16 +97,17 @@ int usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, int r3, in
         ret = clone_patch_attach_sd_hanlde(attach_arg);
 #endif
 
-    if(res==2) {
+    if (res==1) {
+        debug_printf("%s: No WFS detected, creating dummy USB device\n", PLUGIN_NAME);
+        patch_dummy_attach_arg(attach_arg);
+    } else if(res==2) {
         patch_partition_attach_arg(attach_arg);
         active = true;
-    }
+    } 
     
-    if(res == 0 || res == 2){ // direct or partitioned
-        debug_printf("Attatching USB partition\n");
-        ret = sal_attach(attach_arg);
-        learn_usb_crypto_handle = true;
-    }
+    debug_printf("%s: Attatching USB\n", PLUGIN_NAME);
+    ret = sal_attach(attach_arg);
+    learn_usb_crypto_handle = active;
 
     return ret;
 }
