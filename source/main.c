@@ -114,41 +114,6 @@ int usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, int r3, in
     return ret;
 }
 
-// #ifdef USE_MLC_KEY
-// int mlc_attach_hook(int* attach_arg, int r1, int r2, int r3, int (*attach_fun)(int*)){
-//     mlc_size_sectors = attach_arg[0xe - 3];
-//     learn_mlc_crypto_handle = true;
-//     return attach_fun(attach_arg);
-// }
-// #endif
-
-// static void crypto_hook(trampoline_state *state){
-// #ifdef USE_MLC_KEY
-//     static u32 mlc_crypto_handle = 0;
-//     if(learn_mlc_crypto_handle && state->r[5] == mlc_size_sectors){
-//         learn_mlc_crypto_handle = false;
-//         mlc_crypto_handle = state->r[0];
-//         debug_printf("%s: learned mlc crypto handle: 0x%X\n", PLUGIN_NAME, mlc_crypto_handle);
-//     }
-// #endif
-
-//     static u32 usb_crypto_handle = 0;
-//     if(state->r[5] == partition_size){
-//         if(learn_usb_crypto_handle){
-//             learn_usb_crypto_handle = false;
-//             usb_crypto_handle = state->r[0];
-//             debug_printf("%s: learned mlc crypto handle: 0x%X\n", PLUGIN_NAME,  usb_crypto_handle);
-//         }
-//         if(usb_crypto_handle == state->r[0]){
-// #ifdef USE_MLC_KEY
-//             state->r[0] = mlc_crypto_handle;
-// #else     
-//             state->r[0] = NO_CRYPTO_HANDLE;
-// #endif
-//         }
-//     }
-// }
-
 
 static void wfs_initDeviceParams_exit_hook(trampoline_state *regs){
     WFS_Device *wfs_device = (WFS_Device*)regs->r[5];
@@ -186,8 +151,6 @@ void kern_main()
     patch_ums_lba64();
 
     trampoline_blreplace(0x1077eea8, usb_attach_hook);
-    //trampoline_hook_before(0x10740f48, crypto_hook); // hook decrypt call
-    //trampoline_hook_before(0x10740fe8, crypto_hook); // hook encrypt call
 
 #ifdef USE_MLC_KEY
     trampoline_blreplace(0x107bdae0, mlc_attach_hook);
