@@ -152,10 +152,6 @@ void kern_main()
 
     trampoline_blreplace(0x1077eea8, usb_attach_hook);
 
-#ifdef USE_MLC_KEY
-    trampoline_blreplace(0x107bdae0, mlc_attach_hook);
-#endif
-
     // somehow it causes crashes when applied from the attach hook
     apply_hai_patches();
 
