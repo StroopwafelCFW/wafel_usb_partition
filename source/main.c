@@ -123,7 +123,7 @@ static void wfs_initDeviceParams_exit_hook(trampoline_state *regs){
     if(usb_handle_set && server_handle == usb_server_handle) {
 #ifdef USE_MLC_KEY
         wfs_device->crypto_key_handle = WFS_KEY_HANDLE_MLC;
-#else
+#elif defined(NOCRYPTO)
         wfs_device->crypto_key_handle = WFS_KEY_HANDLE_NOCRYPTO;
 #endif
     }
@@ -151,6 +151,10 @@ void kern_main()
     patch_ums_lba64();
 
     trampoline_blreplace(0x1077eea8, usb_attach_hook);
+
+#if defined(USE_MLC_KEY) || defined(NOCRYPTO)
+    trampoline_hook_before(0x107435f4, wfs_initDeviceParams_exit_hook);
+#endif
 
     // somehow it causes crashes when applied from the attach hook
     apply_hai_patches();
