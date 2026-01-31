@@ -14,7 +14,7 @@ include $(MAKEFILE_ROOT_DIR)/elf_rules
 # INCLUDES is a list of directories containing header files
 # SPECS is the directory containing the important build and link files
 #---------------------------------------------------------------------------------
-export TARGET		:=	wafel_usb_partition_nocrypto
+export TARGET		:=	5upartnc
 export BUILD		?=	debug
 
 R_SOURCES			:=	
@@ -34,7 +34,7 @@ CFLAGS			:=	-g -std=c11 -Os \
 					-fomit-frame-pointer -fdata-sections -ffunction-sections \
 					$(ARCH) -nostartfiles
 
-CFLAGS			+=	$(INCLUDE) -D_GNU_SOURCE -fno-builtin-printf -Wno-nonnull -Werror=implicit -DNOCRYPTO
+CFLAGS			+=	$(INCLUDE) -D_GNU_SOURCE -fno-builtin-printf -Wno-nonnull -Werror=implicit -DPLUGIN_NAME='"USBPARTITION NOCRYPTO"' -DNOCRYPTO
 
 CXXFLAGS		:=	$(CFLAGS) -fno-rtti -fno-exceptions
 
