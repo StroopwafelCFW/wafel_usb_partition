@@ -20,11 +20,25 @@ static bool active = false;
 static char umsBlkDevID[0x10] ALIGNED(4);
 
 #ifdef MOUNT_SD
-FSSALAttachDeviceArg extra_attach_arg;
-#endif
+static FSSALAttachDeviceArg extra_attach_arg;
+static int umsDeviceCount = 0;
+static int noMBRCount = 0;
 
-#ifdef USE_MLC_KEY
-u32 mlc_size_sectors = 0;
+/**
+ * @brief Allows other plugins to check if they should wait for a emulated SD
+ * 
+ * @return Returns true if at least one UMS device has a MBR or not all UMS devices have been initialized yet
+ */
+
+bool wafel_usb_partition_wait_usbsd(void){
+    return umsDeviceCount > noMBRCount;
+}
+
+static bool hook_ums_device_initilize(trampoline_state* state){
+    debug_printf("%s ums_device_initialize called device=%p\n", PLUGIN_NAME, (void*)state->r[0]);
+    umsDeviceCount++;
+    return false;
+}
 #endif
 
 static volatile void* usb_server_handle = 0;
@@ -92,8 +106,12 @@ int usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, int r3, in
     int ret = 0;
 
 #ifdef MOUNT_SD
-    if(res>0) // MBR detected
+    if(res>0) { // MBR detected
+        debug_printf("%s: MBR detected, attaching for SD\n", PLUGIN_NAME);
         ret = clone_patch_attach_sd_hanlde(attach_arg);
+        debug_printf("%s: Attached for SD, res: 0x%X\n", PLUGIN_NAME, ret);
+    } else
+        noMBRCount++;
 #endif
 
     if (res==1) {
@@ -110,6 +128,7 @@ int usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, int r3, in
     
     debug_printf("%s: Attatching USB\n", PLUGIN_NAME);
     ret = sal_attach(attach_arg);
+    debug_printf("%s: Attached USB\n", PLUGIN_NAME);
 
     return ret;
 }
@@ -162,6 +181,7 @@ void kern_main()
 #ifdef MOUNT_SD
     // prfile look at the first partition only
     ASM_PATCH_K(0x10793234, "cmp r4, r4");
+    trampoline_hook_before_v2(0x10782034, hook_ums_device_initilize);
 #endif
 
     debug_printf("%s: patches applied\n", PLUGIN_NAME);
