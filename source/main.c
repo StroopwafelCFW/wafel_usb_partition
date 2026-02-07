@@ -105,6 +105,11 @@ static void patch_dummy_attach_arg(FSSALAttachDeviceArg *attach_arg){
 
 static FSSALHandle *partition_handle = NULL;
 FSSALHandle* usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, int r3, FSSALHandle* (*sal_attach)(FSSALAttachDeviceArg*)){
+    if(attach_arg->params.device_type == DEVTYPE_SD){
+        debug_printf("%s: Already SD device type, skipping attach hook\n", PLUGIN_NAME);
+        return sal_attach(attach_arg);
+    }
+    
     u32 part_offset, part_size;
     int res = read_usb_partition_from_mbr(attach_arg, &part_offset, &part_size, umsBlkDevID);
 
