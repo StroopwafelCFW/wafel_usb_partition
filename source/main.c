@@ -74,7 +74,7 @@ static void apply_hai_patches(void){
 #define MAX_CLONED_HANDLES 4
 static FSSALHandle *cloned_handles[MAX_CLONED_HANDLES][2] = {NULL};
 
-static int clone_patch_attach_sd_hanlde(FSSALAttachDeviceArg *attach_arg){
+static FSSALHandle* clone_patch_attach_sd_hanlde(FSSALAttachDeviceArg *attach_arg){
     memcpy(&extra_attach_arg, attach_arg, sizeof(FSSALAttachDeviceArg));
     extra_attach_arg.params.device_type = DEVTYPE_SD;
     if(extra_attach_arg.params.block_count > UINT32_MAX){
@@ -82,7 +82,7 @@ static int clone_patch_attach_sd_hanlde(FSSALAttachDeviceArg *attach_arg){
         extra_attach_arg.params.max_lba_size = UINT32_MAX -1;
     }
     debug_printf("%s: Attaching USB storage as SD\n", PLUGIN_NAME);
-    int res = FSSAL_attach_device(&extra_attach_arg);
+    FSSALHandle *res = FSSAL_attach_device(&extra_attach_arg);
     debug_printf("%s: Attached extra handle. res: 0x%X\n", PLUGIN_NAME, res);
     return res;
 }
@@ -102,6 +102,8 @@ static void patch_dummy_attach_arg(FSSALAttachDeviceArg *attach_arg){
     attach_arg->params.block_count = 0;
 }
 
+
+static FSSALHandle *partition_handle = NULL;
 FSSALHandle* usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, int r3, FSSALHandle* (*sal_attach)(FSSALAttachDeviceArg*)){
     u32 part_offset, part_size;
     int res = read_usb_partition_from_mbr(attach_arg, &part_offset, &part_size, umsBlkDevID);
@@ -110,8 +112,8 @@ FSSALHandle* usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, i
 #ifdef MOUNT_SD
     if(res>0) { // MBR detected
         debug_printf("%s: MBR detected, attaching for SD\n", PLUGIN_NAME);
-        ret = clone_patch_attach_sd_hanlde(attach_arg);
-        debug_printf("%s: Attached for SD, res: 0x%X\n", PLUGIN_NAME, ret);
+        sd_handle = clone_patch_attach_sd_hanlde(attach_arg);
+        debug_printf("%s: Attached for SD, res: 0x%X\n", PLUGIN_NAME, sd_handle);
     } else
         noMBRCount++;
 #endif
@@ -120,17 +122,20 @@ FSSALHandle* usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, i
         debug_printf("%s: No WFS detected, creating dummy USB device\n", PLUGIN_NAME);
         patch_dummy_attach_arg(attach_arg);
     } else if(res==2 && !active) {
+        active = true;
         partition_offset = part_offset;
         partition_size = part_size;
         patch_partition_attach_arg(attach_arg);
         usb_server_handle = attach_arg->server_handle;
         usb_handle_set = true;
-        active = true;
     } 
     
     debug_printf("%s: Attatching USB\n", PLUGIN_NAME);
     FSSALHandle *usb_handle = sal_attach(attach_arg);
     debug_printf("%s: Attached USB\n", PLUGIN_NAME);
+    if(res==2 && !partition_handle) {
+        partition_handle = usb_handle;
+    }
 
     if(!sd_handle)
         return usb_handle;
@@ -151,19 +156,23 @@ FSSALHandle* usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, i
     return usb_handle;
 }
 
-#ifdef MOUNT_SD
 void usb_detach_hook(FSSALHandle *device_handle, int r1, int r2, int r3, void (*sal_detach)(FSSALHandle*)){
+#ifdef MOUNT_SD
     for(int i=0; i<MAX_CLONED_HANDLES; i++){
-        if(cloned_handles[i][0] == device_handle->index){
+        if(cloned_handles[i][0] == device_handle){
             debug_printf("%s: Detaching cloned handle pair: USB: %d SD: %d\n", PLUGIN_NAME, cloned_handles[i][0], cloned_handles[i][1]);
             sal_detach(cloned_handles[i][1]);
-            cloned_handles[i][0] = 0;
-            cloned_handles[i][1] = 0;
+            cloned_handles[i][0] = cloned_handles[i][1] = NULL;
         }
     }
-    sal_detach(device_handle);
-}
 #endif
+    sal_detach(device_handle);
+    if(device_handle == partition_handle){
+        debug_printf("%s: Detached partition handle, deactivating partition patching\n", PLUGIN_NAME);
+        active = false;
+        partition_handle = NULL;
+    }
+}
 
 
 static void wfs_initDeviceParams_exit_hook(trampoline_state *regs){
@@ -202,6 +211,7 @@ void kern_main()
     patch_ums_lba64();
 
     trampoline_blreplace(0x1077eea8, usb_attach_hook);
+    trampoline_blreplace(0x1077eed4, usb_detach_hook);
 
 #if defined(USE_MLC_KEY) || defined(NOCRYPTO)
     trampoline_hook_before(0x107435f4, wfs_initDeviceParams_exit_hook);
@@ -214,7 +224,6 @@ void kern_main()
     // prfile look at the first partition only
     ASM_PATCH_K(0x10793234, "cmp r4, r4");
     trampoline_hook_before_v2(0x10782034, hook_ums_device_initilize);
-    trampoline_blreplace(0x1077eed4, usb_detach_hook);
 #endif
 
     debug_printf("%s: patches applied\n", PLUGIN_NAME);

@@ -131,5 +131,5 @@ struct FSSALDevice {
 _Static_assert(sizeof(FSSALDevice) == 0x204, "FSSALDevice size must be 0x204!");
 
 
-static int (*FSSAL_attach_device)(FSSALAttachDeviceArg*) = (void*)0x10733aa4;
+static FSSALHandle* (*FSSAL_attach_device)(FSSALAttachDeviceArg*) = (void*)0x10733aa4;
 static FSSALDevice* (*FSSAL_LookupDevice)(FSSALHandle) = (void*)0x10733990;
