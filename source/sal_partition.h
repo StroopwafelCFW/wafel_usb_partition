@@ -6,11 +6,7 @@
 #define DEVTYPE_USB 17
 #define DEVTYPE_SD 6
 
-typedef struct {
-    u32 offset;
-    u32 size;
-} HAI_PartitionInfo;
-
-extern HAI_PartitionInfo hai_partition;
+extern u32 partition_offset;
+extern u32 partition_size;
 
 void patch_partition_attach_arg(FSSALAttachDeviceArg *attach_arg, int index, u32 offset, u32 size);

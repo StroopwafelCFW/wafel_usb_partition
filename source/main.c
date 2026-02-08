@@ -48,7 +48,7 @@ static void hai_write_file_patch(trampoline_t_state *s){
     uint32_t *buffer = (uint32_t*)s->r[1];
     debug_printf("HAI WRITE COMPANION\n");
     if(hai_ctx.active && hai_getdev() == DEVTYPE_USB){
-        hai_companion_add_offset(buffer, hai_partition.offset);
+        hai_companion_add_offset(buffer, partition_offset);
     }
 }
 
@@ -76,13 +76,13 @@ typedef struct {
     FSSALHandle *sd_handle;
     FSSALHandle *usb_handle;
     int umsDeviceCount;
-    int noMBRCount;
+    int noSDCount;
 } SDContext;
 
 static SDContext sd_ctx = {false, NULL, NULL, 0, 0};
 
 bool wafel_usb_partition_wait_usbsd(void){
-    return sd_ctx.umsDeviceCount > sd_ctx.noMBRCount;
+    return sd_ctx.umsDeviceCount > sd_ctx.noSDCount;
 }
 
 static bool hook_ums_device_initilize(trampoline_state* state){
@@ -139,24 +139,29 @@ FSSALHandle* usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, i
             debug_printf("%s: Attached for SD, res: 0x%X\n", PLUGIN_NAME, sd_handle);
             if (sd_handle) sd_ctx.attached = true;
         }
+
+        if (!has_fat)
+            sd_ctx.noSDCount++;
     } else
-        sd_ctx.noMBRCount++;
+        sd_ctx.noSDCount++;
 #endif
 
     int wfs_slot = -1;
     if (res == 2) {
-        if (wfs_devices[0].handle == NULL) wfs_slot = 0;
-        else if (wfs_devices[1].handle == NULL) wfs_slot = 1;
+        for (int i = 0; i < 2; i++) {
+            if (wfs_devices[i].handle == NULL) {
+                wfs_slot = i;
+                break;
+            }
+        }
     }
 
-    if (res==1 || (res==2 && wfs_slot == -1)) {
+    if (wfs_slot == -1) {
         debug_printf("%s: No WFS detected or no free slots, creating dummy USB device\n", PLUGIN_NAME);
         patch_dummy_attach_arg(attach_arg);
-    } else if(res==2) {
+    } else {
         if (wfs_slot == 0 && !hai_ctx.active) {
             hai_ctx.active = true;
-            hai_partition.offset = part_offset;
-            hai_partition.size = part_size;
             usb_handle_set = true;
         }
         patch_partition_attach_arg(attach_arg, wfs_slot, part_offset, part_size);

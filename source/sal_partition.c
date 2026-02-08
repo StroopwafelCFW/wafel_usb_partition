@@ -6,7 +6,8 @@
 
 #define SECTOR_SIZE 512
 
-HAI_PartitionInfo hai_partition = {0xFFFFFFF, 0xFFFFFFFF};
+u32 partition_offset = 0xFFFFFFF;
+u32 partition_size = 0xFFFFFFFF;
 
 typedef struct {
     read_func *real_read;
@@ -24,22 +25,31 @@ static PartitionContext contexts[2];
     (low) = (unsigned int)(combined & 0xFFFFFFFF); \
 } while (0)
 
-#define DEFINE_WRAPPERS(idx) \
-static int read_wrapper##idx(void *device_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){ \
-    ADD_OFFSET_VAL(contexts[idx].offset, lba_hi, lba_lo); \
-    return contexts[idx].real_read(device_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx); \
-} \
-static int write_wrapper##idx(void *device_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){ \
-    ADD_OFFSET_VAL(contexts[idx].offset, lba_hi, lba_lo); \
-    return contexts[idx].real_write(device_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx); \
-} \
-static int sync_wrapper##idx(int server_handle, u32 lba_hi, u32 lba_lo, u32 num_blocks, void * cb, void * cb_ctx){ \
-    ADD_OFFSET_VAL(contexts[idx].offset, lba_hi, lba_lo); \
-    return contexts[idx].real_sync(server_handle, lba_hi, lba_lo, num_blocks, cb, cb_ctx); \
+static int read_wrapper0(void *device_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
+    ADD_OFFSET_VAL(partition_offset, lba_hi, lba_lo);
+    return contexts[0].real_read(device_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx);
+}
+static int write_wrapper0(void *device_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
+    ADD_OFFSET_VAL(partition_offset, lba_hi, lba_lo);
+    return contexts[0].real_write(device_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx);
+}
+static int sync_wrapper0(int server_handle, u32 lba_hi, u32 lba_lo, u32 num_blocks, void * cb, void * cb_ctx){
+    ADD_OFFSET_VAL(partition_offset, lba_hi, lba_lo);
+    return contexts[0].real_sync(server_handle, lba_hi, lba_lo, num_blocks, cb, cb_ctx);
 }
 
-DEFINE_WRAPPERS(0)
-DEFINE_WRAPPERS(1)
+static int read_wrapper1(void *device_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
+    ADD_OFFSET_VAL(contexts[1].offset, lba_hi, lba_lo);
+    return contexts[1].real_read(device_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx);
+}
+static int write_wrapper1(void *device_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
+    ADD_OFFSET_VAL(contexts[1].offset, lba_hi, lba_lo);
+    return contexts[1].real_write(device_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx);
+}
+static int sync_wrapper1(int server_handle, u32 lba_hi, u32 lba_lo, u32 num_blocks, void * cb, void * cb_ctx){
+    ADD_OFFSET_VAL(contexts[1].offset, lba_hi, lba_lo);
+    return contexts[1].real_sync(server_handle, lba_hi, lba_lo, num_blocks, cb, cb_ctx);
+}
 
 
 static void readop2_crash(int *device_handle, u32 lba_hi, u32 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
@@ -58,9 +68,10 @@ void patch_partition_attach_arg(FSSALAttachDeviceArg *attach_arg, int index, u32
     contexts[index].real_read = attach_arg->op_read;
     contexts[index].real_write = attach_arg->op_write;
     contexts[index].real_sync = attach_arg->opsync;
-    contexts[index].offset = offset;
 
     if (index == 0) {
+        partition_offset = offset;
+        partition_size = size;
         attach_arg->op_read = read_wrapper0;
         attach_arg->op_write = write_wrapper0;
         attach_arg->opsync = sync_wrapper0;
@@ -73,6 +84,8 @@ void patch_partition_attach_arg(FSSALAttachDeviceArg *attach_arg, int index, u32
     attach_arg->op_read2 = readop2_crash;
     attach_arg->op_write2 = writeop2_crash;
     //attach_arg->params.device_type = device_type;
-    attach_arg->params.max_lba_size = (u64)size -1;
+    attach_arg->params.max_lba_size = size -1;
     attach_arg->params.block_count = size;
+    if (index != 0)
+        contexts[index].offset = offset;
 }

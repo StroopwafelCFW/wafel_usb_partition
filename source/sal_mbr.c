@@ -23,6 +23,15 @@ static bool is_fat(u8 type){
             type == MBR_PARTITION_TYPE_FAT16_LBA);
 }
 
+static bool has_fat_partition(mbr_sector* mbr){
+    for (int i = 0; i < MBR_MAX_PARTITIONS; i++) {
+        if (is_fat(mbr->partition[i].type)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static partition_entry* find_usb_partition(mbr_sector* mbr){
     partition_entry *selected = NULL;
     u32 selected_start = 0;
@@ -80,15 +89,8 @@ int read_usb_partition_from_mbr(FSSALAttachDeviceArg *attach_arg, u32* out_offse
         goto out_free;
     }
 
-    if (out_has_fat) {
-        *out_has_fat = false;
-        for (int i = 0; i < MBR_MAX_PARTITIONS; i++) {
-            if (is_fat(mbr->partition[i].type)) {
-                *out_has_fat = true;
-                break;
-            }
-        }
-    }
+    if (out_has_fat)
+        *out_has_fat = has_fat_partition(mbr);
 
     partition_entry *part = find_usb_partition(mbr);
     if(!part){
