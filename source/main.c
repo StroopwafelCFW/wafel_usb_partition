@@ -48,7 +48,7 @@ static void hai_write_file_patch(trampoline_t_state *s){
     uint32_t *buffer = (uint32_t*)s->r[1];
     debug_printf("HAI WRITE COMPANION\n");
     if(hai_ctx.active && hai_getdev() == DEVTYPE_USB){
-        hai_companion_add_offset(buffer, partition_offset);
+        hai_companion_add_offset(buffer, get_partition_offset());
     }
 }
 
@@ -138,34 +138,36 @@ FSSALHandle* usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, i
             sd_handle = clone_patch_attach_sd_hanlde(attach_arg);
             debug_printf("%s: Attached for SD, res: 0x%X\n", PLUGIN_NAME, sd_handle);
             if (sd_handle) sd_ctx.attached = true;
-        }
-
-        if (!has_fat)
+            else sd_ctx.noSDCount++;
+        } else {
             sd_ctx.noSDCount++;
+        }
     } else
         sd_ctx.noSDCount++;
 #endif
 
     int wfs_slot = -1;
-    if (res == 2) {
+    if (res == 1) {
+        debug_printf("%s: No WFS detected, creating dummy USB device\n", PLUGIN_NAME);
+        patch_dummy_attach_arg(attach_arg);
+    } else if (res == 2) {
         for (int i = 0; i < 2; i++) {
             if (wfs_devices[i].handle == NULL) {
                 wfs_slot = i;
                 break;
             }
         }
-    }
-
-    if (wfs_slot == -1) {
-        debug_printf("%s: No WFS detected or no free slots, creating dummy USB device\n", PLUGIN_NAME);
-        patch_dummy_attach_arg(attach_arg);
-    } else {
-        if (wfs_slot == 0 && !hai_ctx.active) {
-            hai_ctx.active = true;
-            usb_handle_set = true;
+        if (wfs_slot == -1) {
+            debug_printf("%s: No free slots for WFS partition, creating dummy USB device\n", PLUGIN_NAME);
+            patch_dummy_attach_arg(attach_arg);
+        } else {
+            if (wfs_slot == 0 && !hai_ctx.active) {
+                hai_ctx.active = true;
+                usb_handle_set = true;
+            }
+            patch_partition_attach_arg(attach_arg, wfs_slot, part_offset, part_size);
         }
-        patch_partition_attach_arg(attach_arg, wfs_slot, part_offset, part_size);
-    } 
+    }
     
     debug_printf("%s: Attatching USB\n", PLUGIN_NAME);
     FSSALHandle *usb_handle = sal_attach(attach_arg);
@@ -177,8 +179,12 @@ FSSALHandle* usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, i
 
 #ifdef MOUNT_SD
     if (sd_handle) {
-        sd_ctx.usb_handle = usb_handle;
-        sd_ctx.sd_handle = sd_handle;
+        if (usb_handle) {
+            sd_ctx.usb_handle = usb_handle;
+            sd_ctx.sd_handle = sd_handle;
+        } else {
+            return sd_handle;
+        }
     }
 #endif
 
@@ -191,6 +197,9 @@ void usb_detach_hook(FSSALHandle *device_handle, int r1, int r2, int r3, void (*
         debug_printf("%s: Detaching cloned handle pair: USB: %p SD: %p\n", PLUGIN_NAME, sd_ctx.usb_handle, sd_ctx.sd_handle);
         sal_detach(sd_ctx.sd_handle);
         sd_ctx.usb_handle = sd_ctx.sd_handle = NULL;
+        sd_ctx.attached = false;
+    } else if (sd_ctx.sd_handle == device_handle) {
+        sd_ctx.sd_handle = NULL;
         sd_ctx.attached = false;
     }
 #endif

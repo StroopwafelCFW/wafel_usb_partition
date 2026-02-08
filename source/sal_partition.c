@@ -6,9 +6,6 @@
 
 #define SECTOR_SIZE 512
 
-u32 partition_offset = 0xFFFFFFF;
-u32 partition_size = 0xFFFFFFFF;
-
 typedef struct {
     read_func *real_read;
     write_func *real_write;
@@ -16,7 +13,14 @@ typedef struct {
     u32 offset;
 } PartitionContext;
 
-static PartitionContext contexts[2];
+static PartitionContext contexts[2] = {
+    {.offset = 0xFFFFFFF},
+    {.offset = 0xFFFFFFF}
+};
+
+u32 get_partition_offset(void){
+    return contexts[0].offset;
+}
 
 #define ADD_OFFSET_VAL(offset_val, high, low) do { \
     unsigned long long combined = ((unsigned long long)(high) << 32) | (low); \
@@ -26,15 +30,15 @@ static PartitionContext contexts[2];
 } while (0)
 
 static int read_wrapper0(void *device_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
-    ADD_OFFSET_VAL(partition_offset, lba_hi, lba_lo);
+    ADD_OFFSET_VAL(contexts[0].offset, lba_hi, lba_lo);
     return contexts[0].real_read(device_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx);
 }
 static int write_wrapper0(void *device_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
-    ADD_OFFSET_VAL(partition_offset, lba_hi, lba_lo);
+    ADD_OFFSET_VAL(contexts[0].offset, lba_hi, lba_lo);
     return contexts[0].real_write(device_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx);
 }
 static int sync_wrapper0(int server_handle, u32 lba_hi, u32 lba_lo, u32 num_blocks, void * cb, void * cb_ctx){
-    ADD_OFFSET_VAL(partition_offset, lba_hi, lba_lo);
+    ADD_OFFSET_VAL(contexts[0].offset, lba_hi, lba_lo);
     return contexts[0].real_sync(server_handle, lba_hi, lba_lo, num_blocks, cb, cb_ctx);
 }
 
@@ -68,10 +72,9 @@ void patch_partition_attach_arg(FSSALAttachDeviceArg *attach_arg, int index, u32
     contexts[index].real_read = attach_arg->op_read;
     contexts[index].real_write = attach_arg->op_write;
     contexts[index].real_sync = attach_arg->opsync;
+    contexts[index].offset = offset;
 
     if (index == 0) {
-        partition_offset = offset;
-        partition_size = size;
         attach_arg->op_read = read_wrapper0;
         attach_arg->op_write = write_wrapper0;
         attach_arg->opsync = sync_wrapper0;
@@ -86,6 +89,4 @@ void patch_partition_attach_arg(FSSALAttachDeviceArg *attach_arg, int index, u32
     //attach_arg->params.device_type = device_type;
     attach_arg->params.max_lba_size = size -1;
     attach_arg->params.block_count = size;
-    if (index != 0)
-        contexts[index].offset = offset;
 }
