@@ -6,8 +6,7 @@
 
 #define SECTOR_SIZE 512
 
-u32 partition_offset = 0xFFFFFFF;
-u32 partition_size = 0xFFFFFFFF;
+HAI_PartitionInfo hai_partition = {0xFFFFFFF, 0xFFFFFFFF};
 
 typedef struct {
     read_func *real_read;
