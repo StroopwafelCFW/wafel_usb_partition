@@ -9,4 +9,4 @@
 extern u32 partition_offset;
 extern u32 partition_size;
 
-void patch_partition_attach_arg(FSSALAttachDeviceArg *attach_arg);
+void patch_partition_attach_arg(FSSALAttachDeviceArg *attach_arg, int index, u32 offset, u32 size);

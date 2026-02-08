@@ -41,7 +41,7 @@ static bool hook_ums_device_initilize(trampoline_state* state){
 }
 #endif
 
-static volatile void* usb_server_handle = 0;
+static volatile void* usb_server_handles[2] = {0, 0};
 static volatile bool usb_handle_set = false;
 
 static void hai_write_file_patch(trampoline_t_state *s){
@@ -71,8 +71,9 @@ static void apply_hai_patches(void){
 }
 
 #ifdef MOUNT_SD
-#define MAX_CLONED_HANDLES 4
-static FSSALHandle *cloned_handles[MAX_CLONED_HANDLES][2] = {NULL};
+static bool sd_attached = false;
+static FSSALHandle *cloned_sd_handle = NULL;
+static FSSALHandle *cloned_usb_handle = NULL;
 
 static FSSALHandle* clone_patch_attach_sd_hanlde(FSSALAttachDeviceArg *attach_arg){
     memcpy(&extra_attach_arg, attach_arg, sizeof(FSSALAttachDeviceArg));
@@ -103,7 +104,7 @@ static void patch_dummy_attach_arg(FSSALAttachDeviceArg *attach_arg){
 }
 
 
-static FSSALHandle *partition_handle = NULL;
+static FSSALHandle *wfs_handles[2] = {NULL, NULL};
 FSSALHandle* usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, int r3, FSSALHandle* (*sal_attach)(FSSALAttachDeviceArg*)){
     if(attach_arg->params.device_type == DEVTYPE_SD){
         debug_printf("%s: Already SD device type, skipping attach hook\n", PLUGIN_NAME);
@@ -111,71 +112,78 @@ FSSALHandle* usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, i
     }
     
     u32 part_offset, part_size;
-    int res = read_usb_partition_from_mbr(attach_arg, &part_offset, &part_size, umsBlkDevID);
+    bool has_fat = false;
+    int res = read_usb_partition_from_mbr(attach_arg, &part_offset, &part_size, active ? NULL : (u8*)umsBlkDevID, &has_fat);
 
     FSSALHandle *sd_handle = NULL;
 #ifdef MOUNT_SD
-    if(res>0) { // MBR detected
-        debug_printf("%s: MBR detected, attaching for SD\n", PLUGIN_NAME);
-        sd_handle = clone_patch_attach_sd_hanlde(attach_arg);
-        debug_printf("%s: Attached for SD, res: 0x%X\n", PLUGIN_NAME, sd_handle);
+    if(res>=1) { // MBR detected
+        if (has_fat && !sd_attached) {
+            debug_printf("%s: MBR detected with FAT, attaching for SD\n", PLUGIN_NAME);
+            sd_handle = clone_patch_attach_sd_hanlde(attach_arg);
+            debug_printf("%s: Attached for SD, res: 0x%X\n", PLUGIN_NAME, sd_handle);
+            if (sd_handle) sd_attached = true;
+        }
     } else
         noMBRCount++;
 #endif
 
-    if (res==1) {
-        debug_printf("%s: No WFS detected, creating dummy USB device\n", PLUGIN_NAME);
+    int wfs_slot = -1;
+    if (res == 2) {
+        if (wfs_handles[0] == NULL) wfs_slot = 0;
+        else if (wfs_handles[1] == NULL) wfs_slot = 1;
+    }
+
+    if (res==1 || (res==2 && wfs_slot == -1)) {
+        debug_printf("%s: No WFS detected or no free slots, creating dummy USB device\n", PLUGIN_NAME);
         patch_dummy_attach_arg(attach_arg);
-    } else if(res==2 && !active) {
-        active = true;
-        partition_offset = part_offset;
-        partition_size = part_size;
-        patch_partition_attach_arg(attach_arg);
-        usb_server_handle = attach_arg->server_handle;
-        usb_handle_set = true;
+    } else if(res==2) {
+        if (wfs_slot == 0 && !active) {
+            active = true;
+            partition_offset = part_offset;
+            partition_size = part_size;
+            usb_handle_set = true;
+        }
+        patch_partition_attach_arg(attach_arg, wfs_slot, part_offset, part_size);
     } 
     
     debug_printf("%s: Attatching USB\n", PLUGIN_NAME);
     FSSALHandle *usb_handle = sal_attach(attach_arg);
     debug_printf("%s: Attached USB\n", PLUGIN_NAME);
-    if(res==2 && !partition_handle) {
-        partition_handle = usb_handle;
+    if(res==2 && wfs_slot != -1) {
+        wfs_handles[wfs_slot] = usb_handle;
+        usb_server_handles[wfs_slot] = attach_arg->server_handle;
     }
-
-    if(!sd_handle)
-        return usb_handle;
-    if(!usb_handle)
-        return sd_handle;
 
 #ifdef MOUNT_SD
-    for(int i=0; i<MAX_CLONED_HANDLES; i++){
-        if(cloned_handles[i][0] == 0){
-            cloned_handles[i][0] = usb_handle;
-            cloned_handles[i][1] = sd_handle;
-            debug_printf("%s: Cloned handle pair: USB: %d SD: %d\n", PLUGIN_NAME, usb_handle, sd_handle);
-            return usb_handle;
-        }
+    if (sd_handle) {
+        cloned_usb_handle = usb_handle;
+        cloned_sd_handle = sd_handle;
     }
-    debug_printf("%s: No space for cloned handle, returning USB handle\n", PLUGIN_NAME);
 #endif
+
     return usb_handle;
 }
 
 void usb_detach_hook(FSSALHandle *device_handle, int r1, int r2, int r3, void (*sal_detach)(FSSALHandle*)){
 #ifdef MOUNT_SD
-    for(int i=0; i<MAX_CLONED_HANDLES; i++){
-        if(cloned_handles[i][0] == device_handle){
-            debug_printf("%s: Detaching cloned handle pair: USB: %d SD: %d\n", PLUGIN_NAME, cloned_handles[i][0], cloned_handles[i][1]);
-            sal_detach(cloned_handles[i][1]);
-            cloned_handles[i][0] = cloned_handles[i][1] = NULL;
-        }
+    if(cloned_usb_handle == device_handle){
+        debug_printf("%s: Detaching cloned handle pair: USB: %p SD: %p\n", PLUGIN_NAME, cloned_usb_handle, cloned_sd_handle);
+        sal_detach(cloned_sd_handle);
+        cloned_usb_handle = cloned_sd_handle = NULL;
+        sd_attached = false;
     }
 #endif
     sal_detach(device_handle);
-    if(device_handle == partition_handle){
-        debug_printf("%s: Detached partition handle, deactivating partition patching\n", PLUGIN_NAME);
+    if(device_handle == wfs_handles[0]){
+        debug_printf("%s: Detached partition handle 0, deactivating partition patching for HAI\n", PLUGIN_NAME);
         active = false;
-        partition_handle = NULL;
+        wfs_handles[0] = NULL;
+        usb_server_handles[0] = NULL;
+    } else if (device_handle == wfs_handles[1]) {
+        debug_printf("%s: Detached partition handle 1\n", PLUGIN_NAME);
+        wfs_handles[1] = NULL;
+        usb_server_handles[1] = NULL;
     }
 }
 
@@ -185,7 +193,7 @@ static void wfs_initDeviceParams_exit_hook(trampoline_state *regs){
     FSSALDevice *sal_device = FSSAL_LookupDevice(wfs_device->handle);
     void *server_handle = sal_device->server_handle;
     debug_printf("wfs_initDeviceParams_exit_hook server_handle: %p\n", server_handle);
-    if(usb_handle_set && server_handle == usb_server_handle) {
+    if(usb_handle_set && (server_handle == usb_server_handles[0] || server_handle == usb_server_handles[1])) {
 #ifdef USE_MLC_KEY
         wfs_device->crypto_key_handle = WFS_KEY_HANDLE_MLC;
 #elif defined(NOCRYPTO)
