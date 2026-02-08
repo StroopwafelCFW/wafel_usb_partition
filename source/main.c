@@ -132,18 +132,15 @@ FSSALHandle* usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, i
 
     FSSALHandle *sd_handle = NULL;
 #ifdef MOUNT_SD
-    if(res>=1) { // MBR detected
-        if (has_fat && !sd_ctx.attached) {
-            debug_printf("%s: MBR detected with FAT, attaching for SD\n", PLUGIN_NAME);
-            sd_handle = clone_patch_attach_sd_hanlde(attach_arg);
-            debug_printf("%s: Attached for SD, res: 0x%X\n", PLUGIN_NAME, sd_handle);
-            if (sd_handle) sd_ctx.attached = true;
-            else sd_ctx.noSDCount++;
-        } else {
-            sd_ctx.noSDCount++;
-        }
-    } else
+    if(res>=1 && has_fat && !sd_ctx.attached) {
+        debug_printf("%s: MBR detected with FAT, attaching for SD\n", PLUGIN_NAME);
+        sd_handle = clone_patch_attach_sd_hanlde(attach_arg);
+        debug_printf("%s: Attached for SD, res: 0x%X\n", PLUGIN_NAME, sd_handle);
+        if (sd_handle) sd_ctx.attached = true;
+        else sd_ctx.noSDCount++;
+    } else {
         sd_ctx.noSDCount++;
+    }
 #endif
 
     int wfs_slot = -1;
