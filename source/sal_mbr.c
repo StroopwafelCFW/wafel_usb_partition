@@ -14,6 +14,24 @@ static bool is_mbr(mbr_sector* mbr){
     return mbr->boot_signature==0x55AA;
 }
 
+static bool is_fat(u8 type){
+    return (type == MBR_PARTITION_TYPE_FAT12 ||
+            type == MBR_PARTITION_TYPE_FAT16_SMALL ||
+            type == MBR_PARTITION_TYPE_FAT16 ||
+            type == MBR_PARTITION_TYPE_FAT32_CHS ||
+            type == MBR_PARTITION_TYPE_FAT32_LBA ||
+            type == MBR_PARTITION_TYPE_FAT16_LBA);
+}
+
+static bool has_fat_partition(mbr_sector* mbr){
+    for (int i = 0; i < MBR_MAX_PARTITIONS; i++) {
+        if (is_fat(mbr->partition[i].type)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static partition_entry* find_usb_partition(mbr_sector* mbr){
     partition_entry *selected = NULL;
     u32 selected_start = 0;
@@ -53,7 +71,7 @@ static int sync_read(FSSALAttachDeviceArg* attach_arg, u64 lba, u32 blkCount, vo
     return res;
 }
 
-int read_usb_partition_from_mbr(FSSALAttachDeviceArg *attach_arg, u32* out_offset, u32* out_size, u8* out_umsBlkDevID){
+int read_usb_partition_from_mbr(FSSALAttachDeviceArg *attach_arg, u32* out_offset, u32* out_size, u8* out_umsBlkDevID, bool* out_has_fat){
     size_t mbr_size = max(attach_arg->params.block_size, sizeof(mbr_sector));
     mbr_sector *mbr = iosAllocAligned(LOCAL_HEAP_ID, max(attach_arg->params.block_size, mbr_size), 0x40);
     if(!mbr){
@@ -70,6 +88,9 @@ int read_usb_partition_from_mbr(FSSALAttachDeviceArg *attach_arg, u32* out_offse
         ret = 0;
         goto out_free;
     }
+
+    if (out_has_fat)
+        *out_has_fat = has_fat_partition(mbr);
 
     partition_entry *part = find_usb_partition(mbr);
     if(!part){
