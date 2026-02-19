@@ -37,7 +37,8 @@ static partition_entry* find_usb_partition(mbr_sector* mbr){
     u32 selected_start = 0;
     for (size_t i = 1; i < MBR_MAX_PARTITIONS; i++){
         u32 istart = LD_DWORD(mbr->partition[i].lba_start);
-        if(mbr->partition[i].type == NTFS && (selected_start < istart)){
+        u8 type = mbr->partition[i].type;
+        if((type == NTFS || type == NTFS_HIDDEN) && (selected_start < istart)){
             selected = mbr->partition+i;
             selected_start = istart;
         }
