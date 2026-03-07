@@ -1,6 +1,6 @@
 # wafel_usb_partition
 
-This plugin checks the USB storage device for an MBR. If an MBR is found, the first partition will be ignored and the other three partition slots in the MBR will be checked. The NTFS partition with the highest start lba, will be attached as USB.
+This plugin checks the USB storage device for an MBR. If an MBR is found, the first partition will be ignored and the other three partition slots in the MBR will be checked. The partition of type `0x7` (NTFS) or `0x17` (NTFS_HIDDEN) with the highest start lba, will be attached as USB.
 
 ### sd emulation
 
