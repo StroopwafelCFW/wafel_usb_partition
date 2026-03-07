@@ -17,7 +17,7 @@
 #include "wfs.h"
 
 typedef struct {
-    char umsBlkDevID[0x10] ALIGNED(4);
+    u8 umsBlkDevID[0x10] ALIGNED(4);
     bool active;
 } HAIContext;
 
@@ -53,6 +53,7 @@ static void hai_write_file_patch(trampoline_t_state *s){
 }
 
 static int hai_umsBlkDevId_patch(int entry_id, char* umsdev_id, size_t size, int r3, int(*hai_param_add)(int, char*, size_t)){
+    debug_printf("%s: hai_umsBlkDevId_patch(%d, %p, %u) hai_dev: %d hai_ctx.active: %d\n", PLUGIN_NAME, entry_id, umsdev_id, size, hai_getdev(), hai_ctx.active);
     if(hai_ctx.active && hai_getdev() == DEVTYPE_USB){
         debug_printf("%s: Patching umsdev id to %016llX..\n", PLUGIN_NAME, *(u64*)umsdev_id);
         umsdev_id = hai_ctx.umsBlkDevID;
@@ -128,7 +129,7 @@ FSSALHandle* usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, i
     
     u32 part_offset, part_size;
     bool has_fat = false;
-    int res = read_usb_partition_from_mbr(attach_arg, &part_offset, &part_size, hai_ctx.active ? NULL : (u8*)hai_ctx.umsBlkDevID, &has_fat);
+    int res = read_usb_partition_from_mbr(attach_arg, &part_offset, &part_size, hai_ctx.active ? NULL : hai_ctx.umsBlkDevID, &has_fat);
 
     FSSALHandle *sd_handle = NULL;
 #ifdef MOUNT_SD
@@ -155,14 +156,13 @@ FSSALHandle* usb_attach_hook(FSSALAttachDeviceArg *attach_arg, int r1, int r2, i
                 break;
             }
         }
+        debug_printf("%s: Using wfs slot %d\n", PLUGIN_NAME, wfs_slot);
         if (wfs_slot == -1) {
             debug_printf("%s: No free slots for WFS partition, creating dummy USB device\n", PLUGIN_NAME);
             patch_dummy_attach_arg(attach_arg);
         } else {
-            if (wfs_slot == 0 && !hai_ctx.active) {
-                hai_ctx.active = true;
-                usb_handle_set = true;
-            }
+            hai_ctx.active = true;
+            usb_handle_set = true;
             patch_partition_attach_arg(attach_arg, wfs_slot, part_offset, part_size);
         }
     }
@@ -204,7 +204,7 @@ void usb_detach_hook(FSSALHandle *device_handle, int r1, int r2, int r3, void (*
     sal_detach(device_handle);
     if(device_handle == wfs_devices[0].handle){
         debug_printf("%s: Detached partition handle 0, deactivating partition patching for HAI\n", PLUGIN_NAME);
-        hai_ctx.active = false;
+        //hai_ctx.active = false;
         wfs_devices[0].handle = NULL;
         wfs_devices[0].server_handle = NULL;
     } else if (device_handle == wfs_devices[1].handle) {
@@ -257,7 +257,6 @@ void kern_main()
     trampoline_hook_before(0x107435f4, wfs_initDeviceParams_exit_hook);
 #endif
 
-    // somehow it causes crashes when applied from the attach hook
     apply_hai_patches();
 
 #ifdef MOUNT_SD
