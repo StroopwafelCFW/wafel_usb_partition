@@ -204,7 +204,7 @@ void usb_detach_hook(FSSALHandle *device_handle, int r1, int r2, int r3, void (*
     sal_detach(device_handle);
     if(device_handle == wfs_devices[0].handle){
         debug_printf("%s: Detached partition handle 0, deactivating partition patching for HAI\n", PLUGIN_NAME);
-        //hai_ctx.active = false;
+        //hai_ctx.active = false; // the device gets deattached before the HAI parms get setup. So we can't reset it here!
         wfs_devices[0].handle = NULL;
         wfs_devices[0].server_handle = NULL;
     } else if (device_handle == wfs_devices[1].handle) {
