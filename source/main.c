@@ -38,10 +38,10 @@ static bool hook_ums_device_initilize(trampoline_state* state);
 
 typedef struct {
     FSSALHandle *handle;
-    volatile void *server_handle;
+    volatile int server_handle;
 } WFSDeviceContext;
 
-static WFSDeviceContext wfs_devices[2] = {{NULL, NULL}, {NULL, NULL}};
+static WFSDeviceContext wfs_devices[2] = {{NULL, -1}, {NULL, -1}};
 static volatile bool usb_handle_set = false;
 
 static void hai_write_file_patch(trampoline_t_state *s){
@@ -206,11 +206,11 @@ void usb_detach_hook(FSSALHandle *device_handle, int r1, int r2, int r3, void (*
         debug_printf("%s: Detached partition handle 0, deactivating partition patching for HAI\n", PLUGIN_NAME);
         //hai_ctx.active = false; // the device gets deattached before the HAI parms get setup. So we can't reset it here!
         wfs_devices[0].handle = NULL;
-        wfs_devices[0].server_handle = NULL;
+        wfs_devices[0].server_handle = -1;
     } else if (device_handle == wfs_devices[1].handle) {
         debug_printf("%s: Detached partition handle 1\n", PLUGIN_NAME);
         wfs_devices[1].handle = NULL;
-        wfs_devices[1].server_handle = NULL;
+        wfs_devices[1].server_handle = -1;
     }
 }
 
@@ -218,7 +218,7 @@ void usb_detach_hook(FSSALHandle *device_handle, int r1, int r2, int r3, void (*
 static void wfs_initDeviceParams_exit_hook(trampoline_state *regs){
     WFS_Device *wfs_device = (WFS_Device*)regs->r[5];
     FSSALDevice *sal_device = FSSAL_LookupDevice(wfs_device->handle);
-    void *server_handle = sal_device->server_handle;
+    int server_handle = sal_device->server_handle;
     debug_printf("wfs_initDeviceParams_exit_hook server_handle: %p\n", server_handle);
     if(usb_handle_set && (server_handle == wfs_devices[0].server_handle || server_handle == wfs_devices[1].server_handle)) {
 #ifdef USE_MLC_KEY
