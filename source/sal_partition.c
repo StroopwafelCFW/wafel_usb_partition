@@ -29,26 +29,26 @@ u32 get_partition_offset(void){
     (low) = (unsigned int)(combined & 0xFFFFFFFF); \
 } while (0)
 
-static int read_wrapper0(void *device_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
+static int read_wrapper0(int server_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
     ADD_OFFSET_VAL(contexts[0].offset, lba_hi, lba_lo);
-    return contexts[0].real_read(device_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx);
+    return contexts[0].real_read(server_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx);
 }
-static int write_wrapper0(void *device_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
+static int write_wrapper0(int server_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
     ADD_OFFSET_VAL(contexts[0].offset, lba_hi, lba_lo);
-    return contexts[0].real_write(device_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx);
+    return contexts[0].real_write(server_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx);
 }
 static int sync_wrapper0(int server_handle, u32 lba_hi, u32 lba_lo, u32 num_blocks, void * cb, void * cb_ctx){
     ADD_OFFSET_VAL(contexts[0].offset, lba_hi, lba_lo);
     return contexts[0].real_sync(server_handle, lba_hi, lba_lo, num_blocks, cb, cb_ctx);
 }
 
-static int read_wrapper1(void *device_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
+static int read_wrapper1(int server_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
     ADD_OFFSET_VAL(contexts[1].offset, lba_hi, lba_lo);
-    return contexts[1].real_read(device_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx);
+    return contexts[1].real_read(server_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx);
 }
-static int write_wrapper1(void *device_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
+static int write_wrapper1(int server_handle, u32 lba_hi, u32 lba_lo, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
     ADD_OFFSET_VAL(contexts[1].offset, lba_hi, lba_lo);
-    return contexts[1].real_write(device_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx);
+    return contexts[1].real_write(server_handle, lba_hi, lba_lo, blkCount, blockSize, buf, cb, cb_ctx);
 }
 static int sync_wrapper1(int server_handle, u32 lba_hi, u32 lba_lo, u32 num_blocks, void * cb, void * cb_ctx){
     ADD_OFFSET_VAL(contexts[1].offset, lba_hi, lba_lo);
@@ -56,13 +56,13 @@ static int sync_wrapper1(int server_handle, u32 lba_hi, u32 lba_lo, u32 num_bloc
 }
 
 
-static void readop2_crash(int *device_handle, u32 lba_hi, u32 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
-    debug_printf("%s ERROR: readop2 was called!!!! handle: %p type: %u\n", PLUGIN_NAME, device_handle, device_handle[5]);
+static void readop2_crash(int server_handle, u32 lba_hi, u32 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
+    debug_printf("%s ERROR: readop2 was called!!!! handle: %p\n", PLUGIN_NAME, server_handle);
     crash_and_burn();
 }
 
-static void writeop2_crash(int *device_handle, u32 lba_hi, u32 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
-    debug_printf("%s ERROR: readop2 was called!!!! handle: %p type: %u\n", PLUGIN_NAME, device_handle, device_handle[5]);
+static void writeop2_crash(int server_handle, u32 lba_hi, u32 lba, u32 blkCount, u32 blockSize, void *buf, void *cb, void* cb_ctx){
+    debug_printf("%s ERROR: writeop2 was called!!!! handle: %p\n", PLUGIN_NAME, server_handle);
     crash_and_burn();
 }
 
